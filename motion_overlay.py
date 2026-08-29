@@ -11,6 +11,10 @@ from motion_analysis import (
     POSE_MODEL_PATH,
     HAND_MODEL_PATH,
     POSE_INDEX,
+    POSE_TRAJECTORY_POINTS,
+    HAND_POINT_INDICES,
+    TRAJECTORY_POINT_LABELS,
+    get_trajectory_points,
     calculate_angle_2d,
     get_phase,
     get_video_info,
@@ -19,23 +23,25 @@ from motion_analysis import (
 
 # =========================================================
 # OT Practice Copilot
-# 動画オーバーレイ解析
+# 全身軌跡・骨格オーバーレイ動画
 # =========================================================
 
 
 # =========================================================
-# Poseの骨格接続
+# Pose骨格接続
 # =========================================================
 
 POSE_CONNECTIONS = [
-    # 上肢
-    (11, 13),
-    (13, 15),
-    (12, 14),
-    (14, 16),
-
     # 肩
     (11, 12),
+
+    # 左上肢
+    (11, 13),
+    (13, 15),
+
+    # 右上肢
+    (12, 14),
+    (14, 16),
 
     # 体幹
     (11, 23),
@@ -47,17 +53,19 @@ POSE_CONNECTIONS = [
     (25, 27),
     (27, 29),
     (29, 31),
+    (27, 31),
 
     # 右下肢
     (24, 26),
     (26, 28),
     (28, 30),
     (30, 32),
+    (28, 32),
 ]
 
 
 # =========================================================
-# Handの骨格接続
+# Hand骨格接続
 # =========================================================
 
 HAND_CONNECTIONS = [
@@ -97,6 +105,24 @@ HAND_CONNECTIONS = [
 
 
 # =========================================================
+# 軌跡の色
+# =========================================================
+
+TRAJECTORY_COLORS = [
+    (0, 255, 255),
+    (255, 150, 0),
+    (0, 255, 100),
+    (255, 0, 255),
+    (100, 200, 255),
+    (255, 100, 100),
+    (100, 255, 255),
+    (200, 100, 255),
+    (100, 255, 150),
+    (255, 200, 100),
+]
+
+
+# =========================================================
 # 座標変換
 # =========================================================
 
@@ -106,16 +132,26 @@ def landmark_to_pixel(
     height,
 ):
     """
-    MediaPipeの正規化座標を
-    動画上のピクセル座標へ変換する。
+    MediaPipe正規化座標を
+    ピクセル座標へ変換する。
     """
 
     x = int(
-        landmark.x * width
+        np.clip(
+            landmark.x,
+            0.0,
+            1.0,
+        )
+        * width
     )
 
     y = int(
-        landmark.y * height
+        np.clip(
+            landmark.y,
+            0.0,
+            1.0,
+        )
+        * height
     )
 
     return (
@@ -125,7 +161,7 @@ def landmark_to_pixel(
 
 
 # =========================================================
-# ランドマークが描画可能か確認
+# Poseランドマーク可視性
 # =========================================================
 
 def is_landmark_visible(
@@ -133,9 +169,7 @@ def is_landmark_visible(
     threshold=0.4,
 ):
     """
-    Poseランドマークのvisibilityを確認する。
-    Handランドマークにはvisibilityがないため、
-    その場合はTrueを返す。
+    visibilityが一定以上か確認する。
     """
 
     visibility = getattr(
@@ -153,6 +187,241 @@ def is_landmark_visible(
 
 
 # =========================================================
+# Poseの軌跡点座標
+# =========================================================
+
+def get_pose_point_pixel(
+    point_name,
+    landmarks,
+    width,
+    height,
+    visibility_threshold=0.4,
+):
+    """
+    Pose上の軌跡対象点の
+    ピクセル座標を取得する。
+
+    肩中央・骨盤中央も計算する。
+    """
+
+    # -----------------------------------------------------
+    # 肩中央
+    # -----------------------------------------------------
+
+    if point_name == "shoulder_mid":
+
+        left = landmarks[
+            POSE_INDEX[
+                "left_shoulder"
+            ]
+        ]
+
+        right = landmarks[
+            POSE_INDEX[
+                "right_shoulder"
+            ]
+        ]
+
+        if not (
+            is_landmark_visible(
+                left,
+                visibility_threshold,
+            )
+            and
+            is_landmark_visible(
+                right,
+                visibility_threshold,
+            )
+        ):
+            return None
+
+        x = (
+            left.x
+            + right.x
+        ) / 2
+
+        y = (
+            left.y
+            + right.y
+        ) / 2
+
+        return (
+            int(
+                np.clip(
+                    x,
+                    0.0,
+                    1.0,
+                )
+                * width
+            ),
+            int(
+                np.clip(
+                    y,
+                    0.0,
+                    1.0,
+                )
+                * height
+            ),
+        )
+
+
+    # -----------------------------------------------------
+    # 骨盤中央
+    # -----------------------------------------------------
+
+    if point_name == "pelvis_mid":
+
+        left = landmarks[
+            POSE_INDEX[
+                "left_hip"
+            ]
+        ]
+
+        right = landmarks[
+            POSE_INDEX[
+                "right_hip"
+            ]
+        ]
+
+        if not (
+            is_landmark_visible(
+                left,
+                visibility_threshold,
+            )
+            and
+            is_landmark_visible(
+                right,
+                visibility_threshold,
+            )
+        ):
+            return None
+
+        x = (
+            left.x
+            + right.x
+        ) / 2
+
+        y = (
+            left.y
+            + right.y
+        ) / 2
+
+        return (
+            int(
+                np.clip(
+                    x,
+                    0.0,
+                    1.0,
+                )
+                * width
+            ),
+            int(
+                np.clip(
+                    y,
+                    0.0,
+                    1.0,
+                )
+                * height
+            ),
+        )
+
+
+    # -----------------------------------------------------
+    # 通常Poseランドマーク
+    # -----------------------------------------------------
+
+    if point_name not in (
+        POSE_TRAJECTORY_POINTS
+    ):
+
+        return None
+
+
+    index = (
+        POSE_TRAJECTORY_POINTS[
+            point_name
+        ]
+    )
+
+
+    landmark = landmarks[
+        index
+    ]
+
+
+    if not is_landmark_visible(
+        landmark,
+        visibility_threshold,
+    ):
+
+        return None
+
+
+    return landmark_to_pixel(
+        landmark,
+        width,
+        height,
+    )
+
+
+# =========================================================
+# Handの軌跡点座標
+# =========================================================
+
+def get_hand_point_pixel(
+    full_point_name,
+    side,
+    hand_landmarks,
+    width,
+    height,
+):
+    """
+    left_index_tip などの名前から
+    Hand Landmarker上の点を取得する。
+    """
+
+    prefix = (
+        f"{side}_"
+    )
+
+    if not full_point_name.startswith(
+        prefix
+    ):
+
+        return None
+
+
+    local_name = (
+        full_point_name[
+            len(prefix):
+        ]
+    )
+
+
+    if local_name not in (
+        HAND_POINT_INDICES
+    ):
+
+        return None
+
+
+    index = (
+        HAND_POINT_INDICES[
+            local_name
+        ]
+    )
+
+
+    return landmark_to_pixel(
+        hand_landmarks[
+            index
+        ],
+        width,
+        height,
+    )
+
+
+# =========================================================
 # Pose骨格描画
 # =========================================================
 
@@ -161,39 +430,18 @@ def draw_pose_skeleton(
     landmarks,
 ):
     """
-    全身の関節点と骨格線を動画へ描画する。
+    全身骨格を描画する。
     """
 
     height, width = (
         frame.shape[:2]
     )
 
-    left_color = (
-        80,
-        220,
-        80,
-    )
 
-    right_color = (
-        80,
-        170,
-        255,
-    )
-
-    line_color = (
-        220,
-        220,
-        220,
-    )
-
-
-    # -----------------------------------------------------
-    # 骨格線
-    # -----------------------------------------------------
-
-    for start_index, end_index in (
-        POSE_CONNECTIONS
-    ):
+    for (
+        start_index,
+        end_index,
+    ) in POSE_CONNECTIONS:
 
         start_landmark = (
             landmarks[
@@ -207,6 +455,7 @@ def draw_pose_skeleton(
             ]
         )
 
+
         if not (
             is_landmark_visible(
                 start_landmark
@@ -218,27 +467,29 @@ def draw_pose_skeleton(
         ):
             continue
 
-        start_point = (
-            landmark_to_pixel(
-                start_landmark,
-                width,
-                height,
-            )
+
+        start = landmark_to_pixel(
+            start_landmark,
+            width,
+            height,
         )
 
-        end_point = (
-            landmark_to_pixel(
-                end_landmark,
-                width,
-                height,
-            )
+        end = landmark_to_pixel(
+            end_landmark,
+            width,
+            height,
         )
+
 
         cv2.line(
             frame,
-            start_point,
-            end_point,
-            line_color,
+            start,
+            end,
+            (
+                220,
+                220,
+                220,
+            ),
             2,
             cv2.LINE_AA,
         )
@@ -248,42 +499,24 @@ def draw_pose_skeleton(
     # 関節点
     # -----------------------------------------------------
 
-    left_indices = {
-        11,
-        13,
-        15,
-        23,
-        25,
-        27,
-        29,
-        31,
-    }
-
-    right_indices = {
-        12,
-        14,
-        16,
-        24,
-        26,
-        28,
-        30,
-        32,
-    }
-
-
-    for index in (
-        left_indices
-        | right_indices
+    for index in set(
+        point
+        for connection in POSE_CONNECTIONS
+        for point in connection
     ):
 
         landmark = (
-            landmarks[index]
+            landmarks[
+                index
+            ]
         )
+
 
         if not is_landmark_visible(
             landmark
         ):
             continue
+
 
         point = landmark_to_pixel(
             landmark,
@@ -291,24 +524,101 @@ def draw_pose_skeleton(
             height,
         )
 
-        color = (
-            left_color
-            if index in left_indices
-            else right_color
-        )
 
         cv2.circle(
             frame,
             point,
-            6,
-            color,
+            5,
+            (
+                0,
+                255,
+                180,
+            ),
             -1,
             cv2.LINE_AA,
         )
 
 
 # =========================================================
-# 関節角度描画
+# Hand骨格描画
+# =========================================================
+
+def draw_hand_skeleton(
+    frame,
+    hand_landmarks,
+):
+    """
+    手指21点と接続線を描画する。
+    """
+
+    height, width = (
+        frame.shape[:2]
+    )
+
+
+    for (
+        start_index,
+        end_index,
+    ) in HAND_CONNECTIONS:
+
+        start = landmark_to_pixel(
+            hand_landmarks[
+                start_index
+            ],
+            width,
+            height,
+        )
+
+        end = landmark_to_pixel(
+            hand_landmarks[
+                end_index
+            ],
+            width,
+            height,
+        )
+
+
+        cv2.line(
+            frame,
+            start,
+            end,
+            (
+                255,
+                180,
+                40,
+            ),
+            2,
+            cv2.LINE_AA,
+        )
+
+
+    for landmark in (
+        hand_landmarks
+    ):
+
+        point = landmark_to_pixel(
+            landmark,
+            width,
+            height,
+        )
+
+
+        cv2.circle(
+            frame,
+            point,
+            3,
+            (
+                0,
+                255,
+                255,
+            ),
+            -1,
+            cv2.LINE_AA,
+        )
+
+
+# =========================================================
+# 角度表示
 # =========================================================
 
 def draw_angle(
@@ -320,13 +630,14 @@ def draw_angle(
     label,
 ):
     """
-    A-B-Cで構成される2D投影角を
-    関節の近くに表示する。
+    指定した3点から2D投影角を計算し、
+    関節付近に表示する。
     """
 
     height, width = (
         frame.shape[:2]
     )
+
 
     a = landmarks[
         point_a_index
@@ -348,7 +659,6 @@ def draw_angle(
         and
         is_landmark_visible(c)
     ):
-
         return
 
 
@@ -373,8 +683,8 @@ def draw_angle(
 
 
     text = (
-        f"{label} "
-        f"{angle:.0f}deg"
+        f"{label}: "
+        f"{angle:.0f} deg"
     )
 
 
@@ -383,11 +693,11 @@ def draw_angle(
         frame,
         text,
         (
-            x + 8,
-            y - 8,
+            x + 7,
+            y - 7,
         ),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.45,
+        0.42,
         (
             0,
             0,
@@ -398,16 +708,15 @@ def draw_angle(
     )
 
 
-    # 白文字
     cv2.putText(
         frame,
         text,
         (
-            x + 8,
-            y - 8,
+            x + 7,
+            y - 7,
         ),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.45,
+        0.42,
         (
             255,
             255,
@@ -419,7 +728,7 @@ def draw_angle(
 
 
 # =========================================================
-# 全身角度描画
+# 全身主要関節角度
 # =========================================================
 
 def draw_pose_angles(
@@ -427,17 +736,14 @@ def draw_pose_angles(
     landmarks,
 ):
     """
-    左右の主要関節について
-    2D投影角を動画上に表示する。
+    肩・肘・股・膝・足関節の
+    2D投影角を表示する。
     """
 
     p = POSE_INDEX
 
 
-    # -----------------------------------------------------
-    # 左
-    # -----------------------------------------------------
-
+    # 左上肢
     draw_angle(
         frame,
         landmarks,
@@ -456,6 +762,28 @@ def draw_pose_angles(
         "L Elbow",
     )
 
+
+    # 右上肢
+    draw_angle(
+        frame,
+        landmarks,
+        p["right_hip"],
+        p["right_shoulder"],
+        p["right_elbow"],
+        "R Shoulder",
+    )
+
+    draw_angle(
+        frame,
+        landmarks,
+        p["right_shoulder"],
+        p["right_elbow"],
+        p["right_wrist"],
+        "R Elbow",
+    )
+
+
+    # 左下肢
     draw_angle(
         frame,
         landmarks,
@@ -484,28 +812,7 @@ def draw_pose_angles(
     )
 
 
-    # -----------------------------------------------------
-    # 右
-    # -----------------------------------------------------
-
-    draw_angle(
-        frame,
-        landmarks,
-        p["right_hip"],
-        p["right_shoulder"],
-        p["right_elbow"],
-        "R Shoulder",
-    )
-
-    draw_angle(
-        frame,
-        landmarks,
-        p["right_shoulder"],
-        p["right_elbow"],
-        p["right_wrist"],
-        "R Elbow",
-    )
-
+    # 右下肢
     draw_angle(
         frame,
         landmarks,
@@ -535,111 +842,28 @@ def draw_pose_angles(
 
 
 # =========================================================
-# Hand描画
-# =========================================================
-
-def draw_hand_landmarks(
-    frame,
-    hand_landmarks,
-):
-    """
-    21個の手指ランドマークと
-    接続線を動画上に描画する。
-    """
-
-    height, width = (
-        frame.shape[:2]
-    )
-
-
-    # -----------------------------------------------------
-    # 接続線
-    # -----------------------------------------------------
-
-    for start_index, end_index in (
-        HAND_CONNECTIONS
-    ):
-
-        start = landmark_to_pixel(
-            hand_landmarks[
-                start_index
-            ],
-            width,
-            height,
-        )
-
-        end = landmark_to_pixel(
-            hand_landmarks[
-                end_index
-            ],
-            width,
-            height,
-        )
-
-        cv2.line(
-            frame,
-            start,
-            end,
-            (
-                255,
-                180,
-                50,
-            ),
-            2,
-            cv2.LINE_AA,
-        )
-
-
-    # -----------------------------------------------------
-    # 関節点
-    # -----------------------------------------------------
-
-    for landmark in (
-        hand_landmarks
-    ):
-
-        point = landmark_to_pixel(
-            landmark,
-            width,
-            height,
-        )
-
-        cv2.circle(
-            frame,
-            point,
-            3,
-            (
-                255,
-                255,
-                0,
-            ),
-            -1,
-            cv2.LINE_AA,
-        )
-
-
-# =========================================================
-# 手関節軌跡描画
+# 軌跡描画
 # =========================================================
 
 def draw_trajectory(
     frame,
-    trajectory,
+    points,
     color,
+    label=None,
 ):
     """
-    手関節の過去の位置を線として表示する。
+    1つの部位の軌跡を描画する。
     """
 
     if len(
-        trajectory
+        points
     ) < 2:
 
         return
 
 
-    points = np.array(
-        trajectory,
+    array = np.array(
+        points,
         dtype=np.int32,
     )
 
@@ -647,7 +871,7 @@ def draw_trajectory(
     cv2.polylines(
         frame,
         [
-            points
+            array
         ],
         False,
         color,
@@ -656,17 +880,56 @@ def draw_trajectory(
     )
 
 
+    # 現在位置
+    last_point = points[
+        -1
+    ]
+
+
+    cv2.circle(
+        frame,
+        last_point,
+        6,
+        color,
+        -1,
+        cv2.LINE_AA,
+    )
+
+
+    if label:
+
+        cv2.putText(
+            frame,
+            label,
+            (
+                last_point[0] + 5,
+                last_point[1] + 15,
+            ),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.38,
+            color,
+            1,
+            cv2.LINE_AA,
+        )
+
+
 # =========================================================
-# 解析動画生成
+# オーバーレイ動画作成
 # =========================================================
 
 def create_annotated_video(
     video_path,
     output_path,
     phases=None,
+    trajectory_preset="全身",
+    trajectory_points=None,
+    trajectory_duration_s=1.5,
+    show_skeleton=True,
     show_angles=True,
     show_hands=True,
     show_trajectory=True,
+    show_trajectory_labels=False,
+    reset_trajectory_each_phase=False,
 ):
     """
     元動画へ、
@@ -675,16 +938,59 @@ def create_annotated_video(
     ・関節点
     ・2D投影角
     ・手指ランドマーク
-    ・手関節軌跡
-    ・工程名
-    ・経過時間
+    ・選択した全身軌跡
+    ・工程
+    ・時刻
 
-    を重ねたMP4動画を生成する。
+    を重ねたMP4を生成する。
+
+
+    trajectory_preset:
+        上肢
+        体幹
+        下肢
+        手指
+        リーチ
+        立ち上がり
+        歩行
+        全身
+        全身＋手指
+
+
+    trajectory_duration_s:
+        例 1.5 → 直近1.5秒
+        None → 動画全体
     """
 
     if phases is None:
         phases = []
 
+
+    # =====================================================
+    # 軌跡対象
+    # =====================================================
+
+    if trajectory_points is None:
+
+        trajectory_points = (
+            get_trajectory_points(
+                trajectory_preset
+            )
+        )
+
+
+    if not trajectory_points:
+
+        trajectory_points = (
+            get_trajectory_points(
+                "全身"
+            )
+        )
+
+
+    # =====================================================
+    # ファイル
+    # =====================================================
 
     video_path = Path(
         video_path
@@ -700,10 +1006,6 @@ def create_annotated_video(
     )
 
 
-    # -----------------------------------------------------
-    # モデル確認
-    # -----------------------------------------------------
-
     if not POSE_MODEL_PATH.exists():
 
         raise FileNotFoundError(
@@ -718,13 +1020,16 @@ def create_annotated_video(
         )
 
 
-    # -----------------------------------------------------
+    # =====================================================
     # 動画情報
-    # -----------------------------------------------------
+    # =====================================================
 
-    video_info = get_video_info(
-        video_path
+    video_info = (
+        get_video_info(
+            video_path
+        )
     )
+
 
     fps = float(
         video_info[
@@ -745,12 +1050,53 @@ def create_annotated_video(
     )
 
 
-    # -----------------------------------------------------
-    # OpenCV読み込み
-    # -----------------------------------------------------
+    # =====================================================
+    # 軌跡保持フレーム数
+    # =====================================================
+
+    if trajectory_duration_s is None:
+
+        trajectory_maxlen = None
+
+    else:
+
+        trajectory_maxlen = max(
+            2,
+            int(
+                round(
+                    fps
+                    * float(
+                        trajectory_duration_s
+                    )
+                )
+            ),
+        )
+
+
+    trajectories = {}
+
+
+    for point_name in (
+        trajectory_points
+    ):
+
+        trajectories[
+            point_name
+        ] = deque(
+            maxlen=(
+                trajectory_maxlen
+            )
+        )
+
+
+    # =====================================================
+    # OpenCV
+    # =====================================================
 
     cap = cv2.VideoCapture(
-        str(video_path)
+        str(
+            video_path
+        )
     )
 
 
@@ -761,9 +1107,9 @@ def create_annotated_video(
         )
 
 
-    # -----------------------------------------------------
-    # 一旦MJPEG AVIで作成
-    # -----------------------------------------------------
+    # =====================================================
+    # 一時AVI
+    # =====================================================
 
     temporary_avi = (
         output_path.parent
@@ -794,14 +1140,14 @@ def create_annotated_video(
         cap.release()
 
         raise RuntimeError(
-            "解析動画のVideoWriterを"
+            "VideoWriterを"
             "初期化できませんでした。"
         )
 
 
-    # -----------------------------------------------------
-    # MediaPipe設定
-    # -----------------------------------------------------
+    # =====================================================
+    # MediaPipe
+    # =====================================================
 
     BaseOptions = (
         mp.tasks.BaseOptions
@@ -813,7 +1159,8 @@ def create_annotated_video(
 
 
     PoseLandmarker = (
-        mp.tasks.vision.PoseLandmarker
+        mp.tasks.vision
+        .PoseLandmarker
     )
 
     PoseLandmarkerOptions = (
@@ -823,7 +1170,8 @@ def create_annotated_video(
 
 
     HandLandmarker = (
-        mp.tasks.vision.HandLandmarker
+        mp.tasks.vision
+        .HandLandmarker
     )
 
     HandLandmarkerOptions = (
@@ -834,17 +1182,25 @@ def create_annotated_video(
 
     pose_options = (
         PoseLandmarkerOptions(
-            base_options=BaseOptions(
-                model_asset_path=str(
-                    POSE_MODEL_PATH
+
+            base_options=(
+                BaseOptions(
+                    model_asset_path=str(
+                        POSE_MODEL_PATH
+                    )
                 )
             ),
+
             running_mode=(
                 VisionRunningMode.VIDEO
             ),
+
             num_poses=1,
+
             min_pose_detection_confidence=0.5,
+
             min_pose_presence_confidence=0.5,
+
             min_tracking_confidence=0.5,
         )
     )
@@ -852,36 +1208,32 @@ def create_annotated_video(
 
     hand_options = (
         HandLandmarkerOptions(
-            base_options=BaseOptions(
-                model_asset_path=str(
-                    HAND_MODEL_PATH
+
+            base_options=(
+                BaseOptions(
+                    model_asset_path=str(
+                        HAND_MODEL_PATH
+                    )
                 )
             ),
+
             running_mode=(
                 VisionRunningMode.VIDEO
             ),
+
             num_hands=2,
+
             min_hand_detection_confidence=0.5,
+
             min_hand_presence_confidence=0.5,
+
             min_tracking_confidence=0.5,
         )
     )
 
 
-    # -----------------------------------------------------
-    # 軌跡
-    # -----------------------------------------------------
-
-    left_wrist_trajectory = deque(
-        maxlen=45
-    )
-
-    right_wrist_trajectory = deque(
-        maxlen=45
-    )
-
-
     frame_index = 0
+    previous_phase = None
 
 
     try:
@@ -896,11 +1248,13 @@ def create_annotated_video(
             ) as hand_landmarker,
         ):
 
+
             while True:
 
                 success, frame = (
                     cap.read()
                 )
+
 
                 if not success:
                     break
@@ -920,11 +1274,46 @@ def create_annotated_video(
                 )
 
 
-                rgb_frame = (
-                    cv2.cvtColor(
-                        frame,
-                        cv2.COLOR_BGR2RGB,
+                current_phase = (
+                    get_phase(
+                        time_seconds,
+                        phases,
                     )
+                )
+
+
+                # =====================================
+                # 工程変化で軌跡リセット
+                # =====================================
+
+                if (
+                    reset_trajectory_each_phase
+                    and
+                    previous_phase is not None
+                    and
+                    current_phase
+                    != previous_phase
+                ):
+
+                    for trajectory in (
+                        trajectories.values()
+                    ):
+
+                        trajectory.clear()
+
+
+                previous_phase = (
+                    current_phase
+                )
+
+
+                # =====================================
+                # MediaPipe画像
+                # =====================================
+
+                rgb_frame = cv2.cvtColor(
+                    frame,
+                    cv2.COLOR_BGR2RGB,
                 )
 
 
@@ -949,154 +1338,211 @@ def create_annotated_video(
                 )
 
 
+                # =====================================
+                # Hand解析
+                # =====================================
+
+                hand_result = (
+                    hand_landmarker
+                    .detect_for_video(
+                        mp_image,
+                        timestamp_ms,
+                    )
+                )
+
+
+                pose_landmarks = None
+
+
                 if (
                     pose_result
                     .pose_landmarks
                 ):
 
-                    landmarks = (
+                    pose_landmarks = (
                         pose_result
                         .pose_landmarks[0]
                     )
 
 
-                    draw_pose_skeleton(
-                        frame,
-                        landmarks,
-                    )
+                    # ---------------------------------
+                    # 骨格
+                    # ---------------------------------
 
+                    if show_skeleton:
+
+                        draw_pose_skeleton(
+                            frame,
+                            pose_landmarks,
+                        )
+
+
+                    # ---------------------------------
+                    # 角度
+                    # ---------------------------------
 
                     if show_angles:
 
                         draw_pose_angles(
                             frame,
-                            landmarks,
+                            pose_landmarks,
                         )
 
 
                     # ---------------------------------
-                    # 手関節軌跡
+                    # Pose軌跡更新
                     # ---------------------------------
 
                     if show_trajectory:
 
-                        left_wrist = (
-                            landmarks[
-                                POSE_INDEX[
-                                    "left_wrist"
-                                ]
-                            ]
-                        )
-
-                        right_wrist = (
-                            landmarks[
-                                POSE_INDEX[
-                                    "right_wrist"
-                                ]
-                            ]
-                        )
-
-
-                        if is_landmark_visible(
-                            left_wrist
+                        for point_name in (
+                            trajectory_points
                         ):
 
-                            left_point = (
-                                landmark_to_pixel(
-                                    left_wrist,
+                            point = (
+                                get_pose_point_pixel(
+                                    point_name,
+                                    pose_landmarks,
                                     width,
                                     height,
                                 )
                             )
 
-                            left_wrist_trajectory.append(
-                                left_point
-                            )
 
+                            if point is not None:
 
-                        if is_landmark_visible(
-                            right_wrist
-                        ):
-
-                            right_point = (
-                                landmark_to_pixel(
-                                    right_wrist,
-                                    width,
-                                    height,
+                                trajectories[
+                                    point_name
+                                ].append(
+                                    point
                                 )
-                            )
-
-                            right_wrist_trajectory.append(
-                                right_point
-                            )
-
-
-                        draw_trajectory(
-                            frame,
-                            left_wrist_trajectory,
-                            (
-                                80,
-                                220,
-                                80,
-                            ),
-                        )
-
-
-                        draw_trajectory(
-                            frame,
-                            right_wrist_trajectory,
-                            (
-                                80,
-                                170,
-                                255,
-                            ),
-                        )
 
 
                 # =====================================
-                # Hand解析
+                # Hand
                 # =====================================
 
-                if show_hands:
-
-                    hand_result = (
-                        hand_landmarker
-                        .detect_for_video(
-                            mp_image,
-                            timestamp_ms,
-                        )
-                    )
+                if (
+                    hand_result
+                    .hand_landmarks
+                ):
 
 
-                    if (
+                    for (
+                        hand_landmarks,
+                        handedness,
+                    ) in zip(
                         hand_result
-                        .hand_landmarks
+                        .hand_landmarks,
+                        hand_result
+                        .handedness,
                     ):
 
-                        for hand_landmarks in (
-                            hand_result
-                            .hand_landmarks
-                        ):
 
-                            draw_hand_landmarks(
+                        if not handedness:
+                            continue
+
+
+                        side = (
+                            handedness[0]
+                            .category_name
+                            .lower()
+                        )
+
+
+                        if side not in [
+                            "left",
+                            "right",
+                        ]:
+                            continue
+
+
+                        if show_hands:
+
+                            draw_hand_skeleton(
                                 frame,
                                 hand_landmarks,
                             )
 
 
+                        # -----------------------------
+                        # 手指軌跡
+                        # -----------------------------
+
+                        if show_trajectory:
+
+                            for point_name in (
+                                trajectory_points
+                            ):
+
+                                point = (
+                                    get_hand_point_pixel(
+                                        point_name,
+                                        side,
+                                        hand_landmarks,
+                                        width,
+                                        height,
+                                    )
+                                )
+
+
+                                if point is not None:
+
+                                    trajectories[
+                                        point_name
+                                    ].append(
+                                        point
+                                    )
+
+
                 # =====================================
-                # 工程
+                # 軌跡描画
                 # =====================================
 
-                phase_name = get_phase(
-                    time_seconds,
-                    phases,
-                )
+                if show_trajectory:
+
+                    for index, point_name in enumerate(
+                        trajectory_points
+                    ):
+
+                        color = (
+                            TRAJECTORY_COLORS[
+                                index
+                                % len(
+                                    TRAJECTORY_COLORS
+                                )
+                            ]
+                        )
 
 
-                # -------------------------------------
-                # 上部背景
-                # -------------------------------------
+                        if show_trajectory_labels:
+
+                            label = (
+                                TRAJECTORY_POINT_LABELS
+                                .get(
+                                    point_name,
+                                    point_name,
+                                )
+                            )
+
+                        else:
+
+                            label = None
+
+
+                        draw_trajectory(
+                            frame,
+                            trajectories[
+                                point_name
+                            ],
+                            color,
+                            label=label,
+                        )
+
+
+                # =====================================
+                # 上部情報
+                # =====================================
 
                 cv2.rectangle(
                     frame,
@@ -1106,7 +1552,7 @@ def create_annotated_video(
                     ),
                     (
                         width,
-                        65,
+                        70,
                     ),
                     (
                         0,
@@ -1117,39 +1563,18 @@ def create_annotated_video(
                 )
 
 
-                # -------------------------------------
-                # 工程名
-                # -------------------------------------
-
+                # OpenCV標準フォントでは
+                # 日本語表示が安定しないため、
+                # Phase名はASCII推奨。
                 cv2.putText(
                     frame,
-                    f"Phase: {phase_name}",
+                    (
+                        f"Time: "
+                        f"{time_seconds:.2f} s"
+                    ),
                     (
                         20,
-                        27,
-                    ),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (
-                        255,
-                        255,
-                        255,
-                    ),
-                    2,
-                    cv2.LINE_AA,
-                )
-
-
-                # -------------------------------------
-                # 時刻
-                # -------------------------------------
-
-                cv2.putText(
-                    frame,
-                    f"Time: {time_seconds:.2f} s",
-                    (
-                        20,
-                        55,
+                        28,
                     ),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.65,
@@ -1163,19 +1588,42 @@ def create_annotated_video(
                 )
 
 
-                # -------------------------------------
-                # 注意表記
-                # -------------------------------------
+                cv2.putText(
+                    frame,
+                    (
+                        f"Preset: "
+                        f"{trajectory_preset}"
+                        if trajectory_preset.isascii()
+                        else "Trajectory analysis"
+                    ),
+                    (
+                        20,
+                        57,
+                    ),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55,
+                    (
+                        230,
+                        230,
+                        230,
+                    ),
+                    1,
+                    cv2.LINE_AA,
+                )
+
 
                 cv2.putText(
                     frame,
                     "2D projected angles",
                     (
-                        width - 240,
-                        55,
+                        max(
+                            20,
+                            width - 230,
+                        ),
+                        57,
                     ),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
+                    0.48,
                     (
                         220,
                         220,
@@ -1189,6 +1637,7 @@ def create_annotated_video(
                 writer.write(
                     frame
                 )
+
 
                 frame_index += 1
 
@@ -1221,6 +1670,12 @@ def create_annotated_video(
         "-c:v",
         "libx264",
 
+        "-preset",
+        "fast",
+
+        "-crf",
+        "22",
+
         "-pix_fmt",
         "yuv420p",
 
@@ -1244,6 +1699,7 @@ def create_annotated_video(
             stderr=subprocess.PIPE,
         )
 
+
     except subprocess.CalledProcessError as e:
 
         error_text = (
@@ -1254,9 +1710,12 @@ def create_annotated_video(
             )
         )
 
+
         raise RuntimeError(
             "MP4への変換に失敗しました。\n"
-            + error_text[-1500:]
+            + error_text[
+                -2000:
+            ]
         )
 
 
