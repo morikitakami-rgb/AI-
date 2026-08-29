@@ -7,3 +7,14 @@ conversation.db
 *.docx
 *.pptx
 *.xlsx
+
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+
+models/
+temp/
+exports/
+motion_exports/
