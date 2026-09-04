@@ -409,3 +409,36 @@ def run_research_synthesis(
         result.final_output
         or ""
     )
+
+# =========================================================
+# Research Runner
+# =========================================================
+
+
+def run_research_runner(topic):
+    """
+    Research Runner の3段階を順番に実行し、
+    各段階の結果をまとめて返す。
+    """
+
+    question_result = run_research_question(
+        topic
+    )
+
+    search_result = run_research_search(
+        topic=topic,
+        question_summary=question_result,
+    )
+
+    synthesis_result = run_research_synthesis(
+        topic=topic,
+        search_summary=search_result["answer"],
+        question_summary=question_result,
+    )
+
+    return {
+        "topic": str(topic).strip(),
+        "question": question_result,
+        "search": search_result,
+        "synthesis": synthesis_result,
+    }
