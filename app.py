@@ -3781,6 +3781,99 @@ elif mode == "🔬 Research Runner":
                 )
             )
 
+            web_sources = (
+                search_result.get(
+                    "web_sources",
+                    []
+                )
+            )
+
+            if web_sources:
+
+                st.markdown(
+                    "#### 🌐 Web出典"
+                )
+
+                for index, source in enumerate(
+                    web_sources,
+                    start=1,
+                ):
+
+                    title = str(
+                        source.get(
+                            "title",
+                            ""
+                        )
+                    ).strip()
+
+                    url = str(
+                        source.get(
+                            "url",
+                            ""
+                        )
+                    ).strip()
+
+                    if not title:
+
+                        title = (
+                            f"Web出典 {index}"
+                        )
+
+                    if url:
+
+                        st.markdown(
+                            f"{index}. "
+                            f"[{title}]({url})"
+                        )
+
+            file_sources = (
+                search_result.get(
+                    "file_sources",
+                    []
+                )
+            )
+
+            if file_sources:
+
+                st.markdown(
+                    "#### 📄 登録資料"
+                )
+
+                for index, source in enumerate(
+                    file_sources,
+                    start=1,
+                ):
+
+                    filename = str(
+                        source.get(
+                            "filename",
+                            ""
+                        )
+                    ).strip()
+
+                    text = str(
+                        source.get(
+                            "text",
+                            ""
+                        )
+                    ).strip()
+
+                    if not filename:
+
+                        filename = (
+                            f"登録資料 {index}"
+                        )
+
+                    st.markdown(
+                        f"**{index}. {filename}**"
+                    )
+
+                    if text:
+
+                        st.caption(
+                            text
+                        )
+
         with synthesis_tab:
 
             st.markdown(
