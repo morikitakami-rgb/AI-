@@ -2861,6 +2861,8 @@ elif mode == "実践について相談する":
                     practice_result
                 )
 
+                st.session_state.practice_evidence_result = None
+
                 st.success(
                     "AIによる整理が完了しました。"
                 )
@@ -3267,6 +3269,8 @@ elif mode == "実践について相談する":
                     st.session_state.practice_result = (
                         refined_result
                     )
+
+                    st.session_state.practice_evidence_result = None
 
                     st.rerun()
 
