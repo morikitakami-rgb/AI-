@@ -376,3 +376,36 @@ def create_research_synthesis_agent():
         name="EGAI-OT Research Synthesis",
         instructions=RESEARCH_SYNTHESIS_INSTRUCTIONS,
     )
+
+# =========================================================
+# Research Synthesis Run
+# =========================================================
+
+
+def run_research_synthesis(
+    topic,
+    search_summary,
+    question_summary=None,
+):
+    """
+    先行研究検索結果をもとに、
+    研究ギャップ候補と次の研究計画を整理する。
+    """
+
+    agent = create_research_synthesis_agent()
+
+    prompt = build_research_synthesis_prompt(
+        topic=topic,
+        search_summary=search_summary,
+        question_summary=question_summary,
+    )
+
+    result = Runner.run_sync(
+        agent,
+        prompt,
+    )
+
+    return str(
+        result.final_output
+        or ""
+    )
