@@ -25,6 +25,10 @@ from evidence_core import (
     run_evidence_search,
 )
 
+from research_core import (
+    run_research_runner,
+)
+
 from prompts import (
     CATEGORY_MODES,
     get_mode_instruction,
