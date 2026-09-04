@@ -2820,15 +2820,54 @@ elif mode == "実践について相談する":
                 clean_question
             )
 
-            st.success(
-                "入力内容を確認できました。"
-            )
+            try:
 
-            st.caption(
-                "次の工程で、"
-                "EGAI-OT PracticeのAI整理機能へ"
-                "接続します。"
-            )
+                practice_prompt = (
+                    build_practice_prompt(
+                        question=clean_question,
+                        scope=practice_scope,
+                        contexts=practice_contexts,
+                    )
+                )
+
+                with st.spinner(
+                    "EGAI-OT Practiceが"
+                    "相談内容を整理しています..."
+                ):
+
+                    practice_raw_answer = (
+                        run_agent(
+                            practice_prompt,
+                            use_conversation=False,
+                        )
+                    )
+
+                practice_result = (
+                    parse_practice_response(
+                        practice_raw_answer
+                    )
+                )
+
+                st.session_state.practice_result = (
+                    practice_result
+                )
+
+                st.success(
+                    "AIによる整理が完了しました。"
+                )
+
+            except Exception as e:
+
+                st.session_state.practice_result = None
+
+                st.error(
+                    "相談内容の整理中に"
+                    "エラーが発生しました。"
+                )
+
+                st.code(
+                    str(e)
+                )
 
 
 # =========================================================
