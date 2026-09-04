@@ -3152,6 +3152,89 @@ elif mode == "実践について相談する":
             )
 
         # -------------------------------------------------
+        # Practice 履歴
+        # -------------------------------------------------
+
+        if st.session_state.practice_history:
+
+            st.divider()
+
+            st.markdown(
+                "### 📜 これまでの整理"
+            )
+
+            st.caption(
+                "追加情報を反映する前の整理結果を"
+                "振り返ることができます。"
+            )
+
+            for history_number, history_entry in enumerate(
+                st.session_state.practice_history,
+                start=1,
+            ):
+
+                history_result = history_entry.get(
+                    "result",
+                    {},
+                )
+
+                history_additional_information = (
+                    history_entry.get(
+                        "additional_information",
+                        "",
+                    )
+                )
+
+                with st.expander(
+                    f"第{history_number}回の整理"
+                ):
+
+                    history_focus = history_result.get(
+                        "decision_focus",
+                        "",
+                    )
+
+                    if history_focus:
+
+                        st.markdown(
+                            "**今回考えること**"
+                        )
+
+                        st.write(
+                            history_focus
+                        )
+
+                    history_actions = history_result.get(
+                        "next_actions",
+                        [],
+                    )
+
+                    if history_actions:
+
+                        st.markdown(
+                            "**次にすること**"
+                        )
+
+                        for number, item in enumerate(
+                            history_actions,
+                            start=1,
+                        ):
+
+                            st.markdown(
+                                f"{number}. {item}"
+                            )
+
+                    if history_additional_information:
+
+                        st.markdown(
+                            "**この後に追加した情報**"
+                        )
+
+                        st.info(
+                            history_additional_information
+                        )
+
+        # -------------------------------------------------
         # Evidence
         # -------------------------------------------------
 
