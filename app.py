@@ -21,6 +21,10 @@ from practice_core import (
     parse_practice_response,
 )
 
+from evidence_core import (
+    run_evidence_search,
+)
+
 from prompts import (
     CATEGORY_MODES,
     get_mode_instruction,
@@ -223,6 +227,10 @@ if "practice_result" not in st.session_state:
 if "practice_question" not in st.session_state:
 
     st.session_state.practice_question = ""
+
+if "practice_evidence_result" not in st.session_state:
+
+    st.session_state.practice_evidence_result = None
 
 
 # =========================================================
