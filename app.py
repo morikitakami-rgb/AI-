@@ -2868,6 +2868,8 @@ elif mode == "実践について相談する":
                 )
 
                 st.session_state.practice_evidence_result = None
+
+                st.session_state.practice_history = []
                 st.success(
                     "AIによる整理が完了しました。"
                 )
