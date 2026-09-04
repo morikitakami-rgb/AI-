@@ -17,6 +17,7 @@ from practice_core import (
     PRACTICE_SCOPE_OPTIONS,
     PRACTICE_CONTEXT_OPTIONS,
     build_practice_prompt,
+    build_practice_refinement_prompt,
     parse_practice_response,
 )
 
