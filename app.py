@@ -3146,6 +3146,273 @@ elif mode == "実践について相談する":
                 "追加情報の確認が必要です。"
             )
 
+        # -------------------------------------------------
+        # Evidence
+        # -------------------------------------------------
+
+        st.divider()
+
+        st.markdown(
+            "### 📚 根拠を確認する"
+        )
+
+        evidence_question = (
+            result.get(
+                "decision_focus",
+                "",
+            )
+            or result.get(
+                "important_now",
+                "",
+            )
+            or st.session_state.practice_question
+        )
+
+        st.caption(
+            "現在の整理結果をもとに、"
+            "登録資料とWeb上の根拠を確認します。"
+        )
+
+        st.info(
+            evidence_question
+        )
+
+        check_evidence = st.button(
+            "📚 この論点の根拠を確認する",
+            use_container_width=True,
+            disabled=(
+                not privacy_confirmed
+            ),
+            key="practice_evidence_button",
+        )
+
+        if check_evidence:
+
+            try:
+
+                practice_context = {
+                    "original_question": (
+                        st.session_state.practice_question
+                    ),
+                    "scope": result.get(
+                        "scope",
+                        "",
+                    ),
+                    "contexts": result.get(
+                        "contexts",
+                        [],
+                    ),
+                    "known_facts": result.get(
+                        "known_facts",
+                        [],
+                    ),
+                    "decision_focus": result.get(
+                        "decision_focus",
+                        "",
+                    ),
+                }
+
+                with st.spinner(
+                    "根拠を確認しています..."
+                ):
+
+                    evidence_result = (
+                        run_evidence_search(
+                            question=evidence_question,
+                            practice_context=json.dumps(
+                                practice_context,
+                                ensure_ascii=False,
+                            ),
+                        )
+                    )
+
+                st.session_state.practice_evidence_result = (
+                    evidence_result
+                )
+
+                st.rerun()
+
+            except Exception as e:
+
+                st.session_state.practice_evidence_result = None
+
+                st.error(
+                    "根拠の確認中に"
+                    "エラーが発生しました。"
+                )
+
+                st.code(
+                    str(e)
+                )
+
+        # -------------------------------------------------
+        # Evidence 結果表示
+        # -------------------------------------------------
+
+        if st.session_state.practice_evidence_result:
+
+            evidence_result = (
+                st.session_state.practice_evidence_result
+            )
+
+            st.markdown(
+                "#### 📖 Evidence結果"
+            )
+
+            tools_used = evidence_result.get(
+                "tools_used",
+                {},
+            )
+
+            web_status = (
+                "使用"
+                if tools_used.get(
+                    "web_search",
+                    False,
+                )
+                else "未使用"
+            )
+
+            file_status = (
+                "使用"
+                if tools_used.get(
+                    "file_search",
+                    False,
+                )
+                else "未使用"
+            )
+
+            st.caption(
+                f"Web Search：{web_status} ／ "
+                f"登録資料：{file_status}"
+            )
+
+            evidence_answer = evidence_result.get(
+                "answer",
+                "",
+            )
+
+            if evidence_answer:
+
+                st.markdown(
+                    evidence_answer
+                )
+
+            else:
+
+                st.warning(
+                    "根拠に基づく回答を"
+                    "取得できませんでした。"
+                )
+
+
+            # ---------------------------------------------
+            # Web出典
+            # ---------------------------------------------
+
+            web_sources = evidence_result.get(
+                "web_sources",
+                [],
+            )
+
+            if web_sources:
+
+                st.markdown(
+                    "#### 🌐 Web出典"
+                )
+
+                for number, source in enumerate(
+                    web_sources,
+                    start=1,
+                ):
+
+                    title = (
+                        source.get(
+                            "title",
+                            "",
+                        )
+                        or f"Web出典 {number}"
+                    )
+
+                    url = source.get(
+                        "url",
+                        "",
+                    )
+
+                    if url:
+
+                        st.markdown(
+                            f"{number}. [{title}]({url})"
+                        )
+
+                    else:
+
+                        st.markdown(
+                            f"{number}. {title}"
+                        )
+
+
+            # ---------------------------------------------
+            # 登録資料
+            # ---------------------------------------------
+
+            file_sources = evidence_result.get(
+                "file_sources",
+                [],
+            )
+
+            if file_sources:
+
+                st.markdown(
+                    "#### 📄 登録資料"
+                )
+
+                for number, source in enumerate(
+                    file_sources,
+                    start=1,
+                ):
+
+                    filename = (
+                        source.get(
+                            "filename",
+                            "",
+                        )
+                        or f"登録資料 {number}"
+                    )
+
+                    source_text = source.get(
+                        "text",
+                        "",
+                    )
+
+                    with st.expander(
+                        f"{number}. {filename}"
+                    ):
+
+                        if source_text:
+
+                            display_text = (
+                                source_text[:1200]
+                            )
+
+                            if len(
+                                source_text
+                            ) > 1200:
+
+                                display_text += (
+                                    "\n\n…"
+                                )
+
+                            st.write(
+                                display_text
+                            )
+
+                        else:
+
+                            st.write(
+                                "参照箇所の本文は"
+                                "取得されませんでした。"
+                            )
 
         # -------------------------------------------------
         # 追加情報による再整理
