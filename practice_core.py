@@ -398,3 +398,173 @@ def parse_practice_response(
     return normalize_practice_result(
         data
     )
+
+# =========================================================
+# Practice 再整理プロンプト
+# =========================================================
+
+def build_practice_refinement_prompt(
+    original_question,
+    current_result,
+    additional_information,
+):
+    """
+    初回のPractice整理結果と追加情報をもとに、
+    Practice結果を再整理するための
+    プロンプトを作成する。
+    """
+
+    original_question = (
+        original_question or ""
+    ).strip()
+
+    additional_information = (
+        additional_information or ""
+    ).strip()
+
+    if not original_question:
+
+        raise ValueError(
+            "元の相談内容がありません。"
+        )
+
+    if not isinstance(
+        current_result,
+        dict,
+    ):
+
+        raise ValueError(
+            "現在のPractice整理結果が"
+            "正しくありません。"
+        )
+
+    if not additional_information:
+
+        raise ValueError(
+            "追加情報が入力されていません。"
+        )
+
+
+    current_result_json = (
+        json.dumps(
+            current_result,
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+
+
+    return f"""
+あなたはEGAI-OTのPractice支援機能です。
+
+利用者から最初の相談に加えて、
+追加情報が提供されました。
+
+初回の整理結果を固定された結論として扱わず、
+新しい情報を踏まえて、
+専門職が次の判断を行いやすいように
+全体を再整理してください。
+
+
+【最初の相談】
+
+{original_question}
+
+
+【現在の整理結果】
+
+{current_result_json}
+
+
+【今回追加された情報】
+
+{additional_information}
+
+
+【再整理の原則】
+
+1.
+追加情報によって確認できた内容は、
+必要に応じて
+「known_facts」に反映してください。
+
+2.
+すでに確認できたことを、
+「missing_information」として
+繰り返さないでください。
+
+3.
+追加情報によって重要性が変化した場合は、
+
+・important_now
+・needs_organization
+・decision_focus
+・options
+・next_actions
+
+を更新してください。
+
+4.
+まだ不足している情報がある場合のみ、
+意思決定に影響する重要なものを
+最大3個まで示してください。
+
+5.
+不足情報を無理に作らないでください。
+
+6.
+入力されていない事実を
+勝手に補わないでください。
+
+7.
+事実とAIによる推論・仮説を
+混同しないでください。
+
+8.
+本人の問題だけに限定せず、
+必要に応じて、
+
+・本人
+・作業
+・環境
+・時間
+
+の関係から再整理してください。
+
+就労の場合は必要に応じて、
+
+・組織
+
+も考慮してください。
+
+9.
+診断、治療方針、復職可否などを
+AIだけで最終判断しないでください。
+
+10.
+氏名、住所、正確な生年月日、
+電話番号、メールアドレス、
+患者ID、職員番号、
+具体的な勤務先名・施設名などを
+追加で求めないでください。
+
+
+【出力形式】
+
+必ず以下のJSONオブジェクトのみを
+出力してください。
+
+Markdownのコードブロックは不要です。
+
+{{
+  "scope": "",
+  "contexts": [],
+  "important_now": "",
+  "known_facts": [],
+  "needs_organization": [],
+  "decision_focus": "",
+  "missing_information": [],
+  "options": [],
+  "next_actions": []
+}}
+"""
