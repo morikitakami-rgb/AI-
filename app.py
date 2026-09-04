@@ -2870,6 +2870,272 @@ elif mode == "実践について相談する":
                 )
 
 
+    # -----------------------------------------------------
+    # Practice結果表示
+    # -----------------------------------------------------
+
+    if st.session_state.practice_result:
+
+        result = (
+            st.session_state.practice_result
+        )
+
+        st.divider()
+
+        st.markdown(
+            "## Practice整理結果"
+        )
+
+
+        # -------------------------------------------------
+        # Scope / Context
+        # -------------------------------------------------
+
+        scope_col, context_col = st.columns(2)
+
+        with scope_col:
+
+            st.markdown(
+                "#### 対象"
+            )
+
+            st.write(
+                result.get(
+                    "scope",
+                    "未指定",
+                )
+            )
+
+        with context_col:
+
+            st.markdown(
+                "#### 関連する場面"
+            )
+
+            contexts = result.get(
+                "contexts",
+                [],
+            )
+
+            if contexts:
+
+                st.write(
+                    " / ".join(
+                        contexts
+                    )
+                )
+
+            else:
+
+                st.write(
+                    "未指定"
+                )
+
+
+        # -------------------------------------------------
+        # 今、大切なこと
+        # -------------------------------------------------
+
+        st.markdown(
+            "### 🎯 今、大切なこと"
+        )
+
+        important_now = result.get(
+            "important_now",
+            "",
+        )
+
+        if important_now:
+
+            st.info(
+                important_now
+            )
+
+        else:
+
+            st.write(
+                "現時点では整理できていません。"
+            )
+
+
+        # -------------------------------------------------
+        # 今分かっていること
+        # -------------------------------------------------
+
+        st.markdown(
+            "### ✅ 今分かっていること"
+        )
+
+        known_facts = result.get(
+            "known_facts",
+            [],
+        )
+
+        if known_facts:
+
+            for item in known_facts:
+
+                st.markdown(
+                    f"- {item}"
+                )
+
+        else:
+
+            st.write(
+                "入力情報から確認できる事実が"
+                "まだ十分ではありません。"
+            )
+
+
+        # -------------------------------------------------
+        # 整理が必要なこと
+        # -------------------------------------------------
+
+        st.markdown(
+            "### ⚠️ 整理が必要なこと"
+        )
+
+        needs_organization = result.get(
+            "needs_organization",
+            [],
+        )
+
+        if needs_organization:
+
+            for item in needs_organization:
+
+                st.markdown(
+                    f"- {item}"
+                )
+
+        else:
+
+            st.write(
+                "現時点で大きな整理課題は"
+                "示されていません。"
+            )
+
+
+        # -------------------------------------------------
+        # Decision Focus
+        # -------------------------------------------------
+
+        st.markdown(
+            "### 🎯 今回考えること"
+        )
+
+        decision_focus = result.get(
+            "decision_focus",
+            "",
+        )
+
+        if decision_focus:
+
+            st.success(
+                decision_focus
+            )
+
+        else:
+
+            st.write(
+                "検討テーマをさらに"
+                "整理する必要があります。"
+            )
+
+
+        # -------------------------------------------------
+        # 次に確認したいこと
+        # -------------------------------------------------
+
+        st.markdown(
+            "### ❓ 次に確認したいこと"
+        )
+
+        missing_information = result.get(
+            "missing_information",
+            [],
+        )
+
+        if missing_information:
+
+            for number, item in enumerate(
+                missing_information,
+                start=1,
+            ):
+
+                st.markdown(
+                    f"**{number}.** {item}"
+                )
+
+        else:
+
+            st.write(
+                "追加で確認すべき重要情報は"
+                "現時点では示されていません。"
+            )
+
+
+        # -------------------------------------------------
+        # 選択肢
+        # -------------------------------------------------
+
+        st.markdown(
+            "### 💡 考えられる選択肢"
+        )
+
+        options = result.get(
+            "options",
+            [],
+        )
+
+        if options:
+
+            for item in options:
+
+                st.markdown(
+                    f"- {item}"
+                )
+
+        else:
+
+            st.write(
+                "現時点では具体的な選択肢を"
+                "示すための情報が十分ではありません。"
+            )
+
+
+        # -------------------------------------------------
+        # 次にすること
+        # -------------------------------------------------
+
+        st.markdown(
+            "### ➡️ 次にすること"
+        )
+
+        next_actions = result.get(
+            "next_actions",
+            [],
+        )
+
+        if next_actions:
+
+            for number, item in enumerate(
+                next_actions,
+                start=1,
+            ):
+
+                st.markdown(
+                    f"**{number}.** {item}"
+                )
+
+        else:
+
+            st.write(
+                "次の行動を決めるには、"
+                "追加情報の確認が必要です。"
+            )
+
+
 # =========================================================
 # 通常AIチャット
 # =========================================================
