@@ -41,9 +41,19 @@ from presentation_builder import (
 )
 
 from motion_analysis import (
+    TRAJECTORY_PRESETS,
     analyze_video,
-    summarize_by_phase,
+    get_trajectory_points,
     get_video_info,
+    summarize_by_phase,
+)
+
+from motion_overlay import (
+    create_annotated_video,
+)
+
+from video_utils import (
+    prepare_video_for_analysis,
 )
 
 
@@ -160,6 +170,26 @@ if "motion_df" not in st.session_state:
 if "motion_summary" not in st.session_state:
 
     st.session_state.motion_summary = None
+
+
+if "motion_overlay_bytes" not in st.session_state:
+
+    st.session_state.motion_overlay_bytes = None
+
+
+if "motion_overlay_filename" not in st.session_state:
+
+    st.session_state.motion_overlay_filename = None
+
+
+if "motion_source_key" not in st.session_state:
+
+    st.session_state.motion_source_key = None
+
+
+if "motion_preset" not in st.session_state:
+
+    st.session_state.motion_preset = "全身"
 
 
 if "exam_questions" not in st.session_state:
@@ -285,6 +315,16 @@ def new_conversation():
     st.session_state.messages = []
 
     st.session_state.exam_questions = None
+
+    st.session_state.motion_df = None
+
+    st.session_state.motion_summary = None
+
+    st.session_state.motion_overlay_bytes = None
+
+    st.session_state.motion_overlay_filename = None
+
+    st.session_state.motion_source_key = None
 
     st.rerun()
 
@@ -828,10 +868,17 @@ elif category == "📹 動作解析Lab β":
 
 
     st.info(
-        "ローカル版では、元動画そのものを"
-        "OpenAIへ送信せず、"
-        "MediaPipeでPC内解析します。"
-        "AIへ送信するのは解析後の数値のみです。"
+        "元動画はPC内でMediaPipe / OpenCVにより解析します。"
+        "元動画そのものをOpenAIへ送信しません。"
+        "AIによる整理を実行した場合に送信するのは、"
+        "解析後の匿名化された数値情報です。"
+    )
+
+
+    st.caption(
+        "MOV・HEVCなどOpenCVで直接読み込みにくい動画は、"
+        "解析時に一時的なH.264 / MP4へ自動変換します。"
+        "一時ファイルは処理終了後に削除します。"
     )
 
 
@@ -839,24 +886,23 @@ elif category == "📹 動作解析Lab β":
     # 動画確認
     # -----------------------------------------------------
 
-    video_confirmed = (
-        st.checkbox(
-            "テスト用または適切に匿名化された"
-            "動画であることを確認しました"
-        )
+    video_confirmed = st.checkbox(
+        "テスト用または適切に匿名化された"
+        "動画であることを確認しました",
+        key="motion_video_confirmed",
     )
 
 
-    uploaded_video = (
-        st.file_uploader(
-            "解析する動画",
-            type=[
-                "mp4",
-                "mov",
-                "avi",
-                "mkv",
-            ],
-        )
+    uploaded_video = st.file_uploader(
+        "解析する動画",
+        type=[
+            "mp4",
+            "mov",
+            "avi",
+            "mkv",
+            "webm",
+        ],
+        key="motion_video_uploader",
     )
 
 
@@ -866,60 +912,181 @@ elif category == "📹 動作解析Lab β":
 
     if uploaded_video:
 
-        st.video(
-            uploaded_video
+        source_key = (
+            f"{uploaded_video.name}:"
+            f"{uploaded_video.size}"
         )
 
 
-        suffix = Path(
-            uploaded_video.name
-        ).suffix
+        # 新しい動画が選択された場合は、
+        # 以前の解析結果を画面に残さない。
+        if (
+            st.session_state.motion_source_key
+            != source_key
+        ):
 
-
-        # -----------------------------------------
-        # 動画情報確認用の一時ファイル
-        # -----------------------------------------
-
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=suffix,
-        ) as tmp:
-
-            tmp.write(
-                uploaded_video.getvalue()
+            st.session_state.motion_source_key = (
+                source_key
             )
 
-            inspect_path = (
-                tmp.name
+            st.session_state.motion_df = None
+
+            st.session_state.motion_summary = None
+
+            st.session_state.motion_overlay_bytes = (
+                None
             )
+
+            st.session_state.motion_overlay_filename = (
+                None
+            )
+
+
+        st.subheader(
+            "🎞️ 元動画"
+        )
+
+
+        st.video(
+            uploaded_video.getvalue()
+        )
+
+
+        suffix = (
+            Path(
+                uploaded_video.name
+            )
+            .suffix
+            .lower()
+        )
+
+
+        if not suffix:
+
+            suffix = ".mp4"
+
+
+        # =============================================
+        # 動画情報を安全に取得
+        # =============================================
+
+        inspect_path = None
+        inspect_converted_path = None
+        video_info = None
+        inspection_converted = False
 
 
         try:
 
-            video_info = (
-                get_video_info(
-                    inspect_path
+            with tempfile.NamedTemporaryFile(
+                delete=False,
+                suffix=suffix,
+            ) as tmp:
+
+                tmp.write(
+                    uploaded_video.getvalue()
                 )
+
+                inspect_path = (
+                    tmp.name
+                )
+
+
+            inspect_converted_path = (
+                inspect_path
+                + "_converted.mp4"
             )
+
+
+            with st.spinner(
+                "動画形式を確認しています..."
+            ):
+
+                prepared = (
+                    prepare_video_for_analysis(
+                        input_path=inspect_path,
+                        output_path=(
+                            inspect_converted_path
+                        ),
+                    )
+                )
+
+
+                inspection_converted = (
+                    prepared[
+                        "converted"
+                    ]
+                )
+
+
+                prepared_path = str(
+                    prepared[
+                        "path"
+                    ]
+                )
+
+
+                video_info = (
+                    get_video_info(
+                        prepared_path
+                    )
+                )
+
+
+        except Exception as e:
+
+            st.error(
+                "動画を読み込めませんでした。"
+            )
+
+            st.code(
+                str(e)
+            )
+
 
         finally:
 
-            if os.path.exists(
-                inspect_path
-            ):
+            for temp_file in [
+                inspect_path,
+                inspect_converted_path,
+            ]:
 
-                os.remove(
-                    inspect_path
-                )
+                if (
+                    temp_file
+                    and os.path.exists(
+                        temp_file
+                    )
+                ):
+
+                    try:
+
+                        os.remove(
+                            temp_file
+                        )
+
+                    except OSError:
+
+                        pass
+
+
+        if video_info is None:
+
+            st.stop()
+
+
+        if inspection_converted:
+
+            st.success(
+                "この動画は解析可能なH.264 / MP4へ"
+                "一時的に自動変換して処理できます。"
+            )
 
 
         # -----------------------------------------
         # 動画基本情報
         # -----------------------------------------
 
-        c1, c2, c3 = (
-            st.columns(3)
-        )
+        c1, c2, c3 = st.columns(3)
 
 
         c1.metric(
@@ -927,34 +1094,189 @@ elif category == "📹 動作解析Lab β":
             f"{video_info['fps']:.1f}",
         )
 
+
         c2.metric(
             "動画時間",
             f"{video_info['duration']:.2f}秒",
         )
 
+
         c3.metric(
             "フレーム数",
-            video_info[
-                "frame_count"
-            ],
+            int(
+                video_info[
+                    "frame_count"
+                ]
+            ),
         )
 
 
-        # -----------------------------------------
-        # 解析頻度
-        # -----------------------------------------
+        st.divider()
 
-        analysis_fps = (
-            st.selectbox(
-                "解析頻度",
-                [
-                    10,
-                    15,
-                    30,
-                ],
-                index=2,
+
+        # =========================================
+        # 解析設定
+        # =========================================
+
+        st.subheader(
+            "⚙️ 解析設定"
+        )
+
+
+        setting_col1, setting_col2 = (
+            st.columns(2)
+        )
+
+
+        preset_options = list(
+            TRAJECTORY_PRESETS.keys()
+        )
+
+
+        if "全身" in preset_options:
+
+            default_preset_index = (
+                preset_options.index(
+                    "全身"
+                )
+            )
+
+        else:
+
+            default_preset_index = 0
+
+
+        with setting_col1:
+
+            trajectory_preset = (
+                st.selectbox(
+                    "軌跡プリセット",
+                    preset_options,
+                    index=(
+                        default_preset_index
+                    ),
+                    help=(
+                        "動画上に軌跡を表示する"
+                        "身体部位の組み合わせです。"
+                    ),
+                )
+            )
+
+
+            trajectory_duration_s = (
+                st.selectbox(
+                    "軌跡を残す時間",
+                    [
+                        0.5,
+                        1.5,
+                        3.0,
+                    ],
+                    index=1,
+                    format_func=(
+                        lambda value:
+                        f"{value:.1f}秒"
+                    ),
+                )
+            )
+
+
+            analysis_fps = (
+                st.selectbox(
+                    "数値解析の頻度",
+                    [
+                        10,
+                        15,
+                        30,
+                    ],
+                    index=2,
+                    help=(
+                        "角度・座標などの"
+                        "数値データを解析する頻度です。"
+                    ),
+                )
+            )
+
+
+        with setting_col2:
+
+            show_skeleton = (
+                st.checkbox(
+                    "骨格を表示",
+                    value=True,
+                )
+            )
+
+
+            show_angles = (
+                st.checkbox(
+                    "2D投影角を表示",
+                    value=True,
+                )
+            )
+
+
+            show_trajectory = (
+                st.checkbox(
+                    "軌跡を表示",
+                    value=True,
+                )
+            )
+
+
+            show_hands = (
+                st.checkbox(
+                    "手指ランドマークを表示",
+                    value=True,
+                )
+            )
+
+
+            show_trajectory_labels = (
+                st.checkbox(
+                    "軌跡ラベルを表示",
+                    value=False,
+                    help=(
+                        "全身プリセットでは"
+                        "表示が混雑しやすいため、"
+                        "通常はOFFを推奨します。"
+                    ),
+                )
+            )
+
+
+            reset_trajectory_each_phase = (
+                st.checkbox(
+                    "工程が変わるたびに軌跡をリセット",
+                    value=False,
+                )
+            )
+
+
+        selected_trajectory_points = (
+            get_trajectory_points(
+                trajectory_preset
             )
         )
+
+
+        with st.expander(
+            "今回追跡する身体部位",
+            expanded=False,
+        ):
+
+            if selected_trajectory_points:
+
+                st.write(
+                    "、".join(
+                        selected_trajectory_points
+                    )
+                )
+
+            else:
+
+                st.write(
+                    "追跡対象が設定されていません。"
+                )
 
 
         # =========================================
@@ -962,7 +1284,14 @@ elif category == "📹 動作解析Lab β":
         # =========================================
 
         st.subheader(
-            "工程設定"
+            "🧩 工程設定"
+        )
+
+
+        st.caption(
+            "動画を作業工程ごとに区切ると、"
+            "工程別の角度・軌跡・速度の特徴を"
+            "比較しやすくなります。"
         )
 
 
@@ -996,6 +1325,7 @@ elif category == "📹 動作解析Lab β":
                 * i
                 / phase_count
             )
+
 
             default_end = (
                 duration_seconds
@@ -1096,41 +1426,117 @@ elif category == "📹 動作解析Lab β":
         # 動作解析開始
         # =========================================
 
+        st.divider()
+
+
         if st.button(
-            "📊 動作解析を開始",
+            "📊 数値解析＋軌跡動画を作成",
             type="primary",
             disabled=(
                 not video_confirmed
                 or not phases_valid
             ),
+            use_container_width=True,
         ):
 
-            with tempfile.NamedTemporaryFile(
-                delete=False,
-                suffix=suffix,
-            ) as tmp:
+            source_path = None
+            converted_path = None
+            overlay_path = None
 
-                tmp.write(
-                    uploaded_video.getvalue()
-                )
 
-                video_path = (
-                    tmp.name
-                )
+            # 新しい解析を開始する時点で、
+            # 古い結果をクリアする。
+            st.session_state.motion_df = None
+
+            st.session_state.motion_summary = None
+
+            st.session_state.motion_overlay_bytes = (
+                None
+            )
+
+            st.session_state.motion_overlay_filename = (
+                None
+            )
 
 
             try:
 
+                # ---------------------------------
+                # 元動画を一時ファイルへ保存
+                # ---------------------------------
+
+                with tempfile.NamedTemporaryFile(
+                    delete=False,
+                    suffix=suffix,
+                ) as tmp:
+
+                    tmp.write(
+                        uploaded_video.getvalue()
+                    )
+
+                    source_path = (
+                        tmp.name
+                    )
+
+
+                converted_path = (
+                    source_path
+                    + "_analysis.mp4"
+                )
+
+
+                # ---------------------------------
+                # MOV / HEVC等を必要に応じて変換
+                # ---------------------------------
+
                 with st.spinner(
-                    "MediaPipeで"
-                    "全身・手指を解析しています..."
+                    "動画形式を確認し、"
+                    "必要に応じてMP4へ変換しています..."
+                ):
+
+                    prepared = (
+                        prepare_video_for_analysis(
+                            input_path=source_path,
+                            output_path=(
+                                converted_path
+                            ),
+                        )
+                    )
+
+
+                    analysis_video_path = str(
+                        prepared[
+                            "path"
+                        ]
+                    )
+
+
+                if prepared[
+                    "converted"
+                ]:
+
+                    st.info(
+                        "解析用にH.264 / MP4へ"
+                        "一時変換しました。"
+                    )
+
+
+                # ---------------------------------
+                # 数値解析
+                # ---------------------------------
+
+                with st.spinner(
+                    "MediaPipeで全身・手指の"
+                    "数値解析をしています..."
                 ):
 
                     (
                         motion_df,
                         _
                     ) = analyze_video(
-                        video_path=video_path,
+                        video_path=(
+                            analysis_video_path
+                        ),
                         phases=phases,
                         target_fps=(
                             analysis_fps
@@ -1145,17 +1551,119 @@ elif category == "📹 動作解析Lab β":
                     )
 
 
-                    st.session_state.motion_df = (
-                        motion_df
+                # ---------------------------------
+                # 骨格・角度・軌跡動画
+                # ---------------------------------
+
+                overlay_file = (
+                    tempfile.NamedTemporaryFile(
+                        delete=False,
+                        suffix=".mp4",
+                    )
+                )
+
+                overlay_path = (
+                    overlay_file.name
+                )
+
+                overlay_file.close()
+
+
+                # motion_overlay側で出力するため、
+                # 先に作られた空ファイルを削除する。
+                if os.path.exists(
+                    overlay_path
+                ):
+
+                    os.remove(
+                        overlay_path
                     )
 
-                    st.session_state.motion_summary = (
-                        summary_df
+
+                with st.spinner(
+                    "骨格・関節角度・軌跡を"
+                    "重ねた解析動画を作成しています..."
+                ):
+
+                    created_overlay_path = (
+                        create_annotated_video(
+                            video_path=(
+                                analysis_video_path
+                            ),
+                            output_path=(
+                                overlay_path
+                            ),
+                            phases=phases,
+                            trajectory_preset=(
+                                trajectory_preset
+                            ),
+                            trajectory_duration_s=(
+                                trajectory_duration_s
+                            ),
+                            show_skeleton=(
+                                show_skeleton
+                            ),
+                            show_angles=(
+                                show_angles
+                            ),
+                            show_hands=(
+                                show_hands
+                            ),
+                            show_trajectory=(
+                                show_trajectory
+                            ),
+                            show_trajectory_labels=(
+                                show_trajectory_labels
+                            ),
+                            reset_trajectory_each_phase=(
+                                reset_trajectory_each_phase
+                            ),
+                        )
                     )
+
+
+                with open(
+                    created_overlay_path,
+                    "rb",
+                ) as video_file:
+
+                    overlay_bytes = (
+                        video_file.read()
+                    )
+
+
+                # ---------------------------------
+                # Session Stateへ保存
+                # ---------------------------------
+
+                st.session_state.motion_df = (
+                    motion_df
+                )
+
+
+                st.session_state.motion_summary = (
+                    summary_df
+                )
+
+
+                st.session_state.motion_overlay_bytes = (
+                    overlay_bytes
+                )
+
+
+                st.session_state.motion_overlay_filename = (
+                    "ot_motion_analysis_overlay.mp4"
+                )
+
+
+                st.session_state.motion_preset = (
+                    trajectory_preset
+                )
 
 
                 st.success(
-                    "動作解析が完了しました。"
+                    "数値解析と軌跡付き解析動画の"
+                    "作成が完了しました。"
                 )
 
 
@@ -1166,6 +1674,7 @@ elif category == "📹 動作解析Lab β":
                     "エラーが発生しました。"
                 )
 
+
                 st.code(
                     str(e)
                 )
@@ -1173,13 +1682,28 @@ elif category == "📹 動作解析Lab β":
 
             finally:
 
-                if os.path.exists(
-                    video_path
-                ):
+                for temp_file in [
+                    source_path,
+                    converted_path,
+                    overlay_path,
+                ]:
 
-                    os.remove(
-                        video_path
-                    )
+                    if (
+                        temp_file
+                        and os.path.exists(
+                            temp_file
+                        )
+                    ):
+
+                        try:
+
+                            os.remove(
+                                temp_file
+                            )
+
+                        except OSError:
+
+                            pass
 
 
     # =====================================================
@@ -1187,7 +1711,8 @@ elif category == "📹 動作解析Lab β":
     # =====================================================
 
     if (
-        st.session_state.motion_df
+        uploaded_video
+        and st.session_state.motion_df
         is not None
     ):
 
@@ -1196,14 +1721,64 @@ elif category == "📹 動作解析Lab β":
             .motion_df
         )
 
+
         summary_df = (
             st.session_state
             .motion_summary
         )
 
 
+        st.divider()
+
+
+        st.header(
+            "📊 動作解析結果"
+        )
+
+
+        # =============================================
+        # 解析済み動画
+        # =============================================
+
+        if (
+            st.session_state
+            .motion_overlay_bytes
+            is not None
+        ):
+
+            st.subheader(
+                "🎥 骨格・角度・軌跡付き解析動画"
+            )
+
+
+            st.video(
+                st.session_state
+                .motion_overlay_bytes
+            )
+
+
+            st.download_button(
+                "📥 解析動画をダウンロード",
+                data=(
+                    st.session_state
+                    .motion_overlay_bytes
+                ),
+                file_name=(
+                    st.session_state
+                    .motion_overlay_filename
+                    or
+                    "ot_motion_analysis_overlay.mp4"
+                ),
+                mime="video/mp4",
+            )
+
+
+        # =============================================
+        # 工程別解析結果
+        # =============================================
+
         st.subheader(
-            "📊 工程別解析結果"
+            "📋 工程別解析結果"
         )
 
 
@@ -1213,12 +1788,12 @@ elif category == "📹 動作解析Lab β":
         )
 
 
-        # -----------------------------------------
-        # 左右選択
-        # -----------------------------------------
+        # =============================================
+        # 角度グラフ
+        # =============================================
 
         side = st.radio(
-            "グラフ表示側",
+            "角度グラフの表示側",
             [
                 "左",
                 "右",
@@ -1252,10 +1827,6 @@ elif category == "📹 動作解析Lab β":
         ]
 
 
-        # -----------------------------------------
-        # グラフ
-        # -----------------------------------------
-
         if graph_columns:
 
             graph_df = (
@@ -1272,7 +1843,7 @@ elif category == "📹 動作解析Lab β":
 
 
             st.subheader(
-                "📈 時間―角度変化"
+                "📈 時間―2D投影角変化"
             )
 
 
@@ -1281,49 +1852,237 @@ elif category == "📹 動作解析Lab β":
             )
 
 
-        # -----------------------------------------
+        else:
+
+            st.info(
+                "角度グラフとして表示できる"
+                "列がありませんでした。"
+            )
+
+
+        # =============================================
+        # 軌跡座標
+        # =============================================
+
+        st.subheader(
+            "🧭 身体部位の軌跡・移動"
+        )
+
+
+        result_preset = (
+            st.session_state
+            .motion_preset
+        )
+
+
+        result_points = (
+            get_trajectory_points(
+                result_preset
+            )
+        )
+
+
+        coordinate_points = []
+
+
+        for point in result_points:
+
+            x_column = (
+                f"{point}_x"
+            )
+
+            y_column = (
+                f"{point}_y"
+            )
+
+
+            if (
+                x_column
+                in motion_df.columns
+                and y_column
+                in motion_df.columns
+            ):
+
+                coordinate_points.append(
+                    point
+                )
+
+
+        if coordinate_points:
+
+            trajectory_point = (
+                st.selectbox(
+                    "表示する身体部位",
+                    coordinate_points,
+                    key=(
+                        "trajectory_result_point"
+                    ),
+                )
+            )
+
+
+            trajectory_columns = [
+                "time_s",
+                f"{trajectory_point}_x",
+                f"{trajectory_point}_y",
+            ]
+
+
+            trajectory_graph_df = (
+                motion_df[
+                    trajectory_columns
+                ]
+                .dropna()
+                .set_index(
+                    "time_s"
+                )
+            )
+
+
+            if not trajectory_graph_df.empty:
+
+                st.caption(
+                    "X・Yは画像上の正規化座標です。"
+                    "カメラ位置や撮影距離の影響を受けます。"
+                )
+
+
+                st.line_chart(
+                    trajectory_graph_df
+                )
+
+
+            speed_columns = [
+                column
+                for column in motion_df.columns
+                if (
+                    column.startswith(
+                        f"{trajectory_point}_"
+                    )
+                    and "speed"
+                    in column.lower()
+                )
+            ]
+
+
+            if speed_columns:
+
+                speed_graph_df = (
+                    motion_df[
+                        [
+                            "time_s"
+                        ]
+                        + speed_columns
+                    ]
+                    .set_index(
+                        "time_s"
+                    )
+                )
+
+
+                st.markdown(
+                    "#### 移動速度"
+                )
+
+
+                st.line_chart(
+                    speed_graph_df
+                )
+
+
+        else:
+
+            st.info(
+                "選択したプリセットについて、"
+                "表示可能なX・Y軌跡座標が"
+                "見つかりませんでした。"
+            )
+
+
+        # =============================================
+        # データ確認
+        # =============================================
+
+        with st.expander(
+            "フレーム別データを確認",
+            expanded=False,
+        ):
+
+            st.dataframe(
+                motion_df,
+                use_container_width=True,
+            )
+
+
+        # =============================================
         # CSV
-        # -----------------------------------------
+        # =============================================
 
-        st.download_button(
-            "📥 フレーム別CSV",
-            data=(
-                motion_df
-                .to_csv(
-                    index=False
-                )
-                .encode(
-                    "utf-8-sig"
-                )
-            ),
-            file_name=(
-                "motion_frame_data.csv"
-            ),
-            mime="text/csv",
+        download_col1, download_col2 = (
+            st.columns(2)
         )
 
 
-        st.download_button(
-            "📥 工程別CSV",
-            data=(
-                summary_df
-                .to_csv(
-                    index=False
-                )
-                .encode(
-                    "utf-8-sig"
-                )
-            ),
-            file_name=(
-                "motion_phase_summary.csv"
-            ),
-            mime="text/csv",
-        )
+        with download_col1:
+
+            st.download_button(
+                "📥 フレーム別CSV",
+                data=(
+                    motion_df
+                    .to_csv(
+                        index=False
+                    )
+                    .encode(
+                        "utf-8-sig"
+                    )
+                ),
+                file_name=(
+                    "motion_frame_data.csv"
+                ),
+                mime="text/csv",
+                use_container_width=True,
+            )
 
 
-        # -----------------------------------------
+        with download_col2:
+
+            st.download_button(
+                "📥 工程別CSV",
+                data=(
+                    summary_df
+                    .to_csv(
+                        index=False
+                    )
+                    .encode(
+                        "utf-8-sig"
+                    )
+                ),
+                file_name=(
+                    "motion_phase_summary.csv"
+                ),
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+
+        # =============================================
         # AIによるOT視点の整理
-        # -----------------------------------------
+        # =============================================
+
+        st.divider()
+
+
+        st.subheader(
+            "🧠 OT視点による整理"
+        )
+
+
+        st.caption(
+            "AIは元動画を見ません。"
+            "PC内解析で得られた匿名化済みの"
+            "工程別数値のみを使用します。"
+        )
+
 
         if st.button(
             "🧠 OT視点で解析結果を整理"
@@ -1343,6 +2102,11 @@ elif category == "📹 動作解析Lab β":
 匿名化済みの工程別数値です。
 
 あなた自身は元動画を見ていません。
+
+
+【軌跡プリセット】
+
+{result_preset}
 
 
 【工程別データ】
@@ -1370,7 +2134,8 @@ elif category == "📹 動作解析Lab β":
 【重要】
 
 単眼動画から算出した
-2D投影値です。
+2D投影値・画像上の座標・
+MediaPipeによる推定値です。
 
 正式なROM測定値や
 三次元動作解析値として
@@ -1379,14 +2144,17 @@ elif category == "📹 動作解析Lab β":
 観測された事実と
 AIによる仮説を
 明確に区別してください。
+
+元動画を見たかのような
+表現はしないでください。
 """
 
 
             try:
 
                 with st.spinner(
-                    "解析結果を"
-                    "OTの視点から整理しています..."
+                    "解析結果をOTの視点から"
+                    "整理しています..."
                 ):
 
                     interpretation = (
@@ -1408,6 +2176,7 @@ AIによる仮説を
                     "AIによる解釈中に"
                     "エラーが発生しました。"
                 )
+
 
                 st.code(
                     str(e)
