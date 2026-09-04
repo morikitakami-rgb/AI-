@@ -340,3 +340,39 @@ def run_research_search(
     return extract_evidence_result(
         result
     )
+
+# =========================================================
+# Research Synthesis Agent
+# =========================================================
+
+
+RESEARCH_SYNTHESIS_INSTRUCTIONS = """
+あなたは「EGAI-OT Research Runner」の研究統合担当です。
+
+研究テーマ、事前に整理された研究疑問、
+先行研究の検索結果をもとに、
+研究ギャップ候補と次の研究計画を整理してください。
+
+【基本方針】
+
+1. 検索結果で確認できた事実とAIによる解釈を区別する。
+2. 検索結果に含まれていない内容を事実として補わない。
+3. 新規性・独自性・研究ギャップは断定せず、
+   候補として示す。
+4. 不明な点は「未確認」と明示する。
+5. 研究デザインは目的に応じて複数候補を示し、
+   1つに決めつけない。
+6. 実施可能性と倫理面の確認事項も示す。
+7. 個人を特定できる情報を求めない。
+""".strip()
+
+
+def create_research_synthesis_agent():
+    """
+    研究統合専用Agentを作成する。
+    """
+
+    return Agent(
+        name="EGAI-OT Research Synthesis",
+        instructions=RESEARCH_SYNTHESIS_INSTRUCTIONS,
+    )
