@@ -109,3 +109,79 @@ def build_research_search_prompt(topic, question_summary=None):
   専門学会など信頼性の高い情報を優先してください。
 ・個人を特定できる情報は求めないでください。
 """.strip()
+
+# =========================================================
+# Research Synthesis Prompt
+# =========================================================
+
+
+def build_research_synthesis_prompt(
+    topic,
+    search_summary,
+    question_summary=None,
+):
+    """
+    先行研究の検索結果をもとに、
+    研究ギャップ候補と次の研究計画を整理する
+    プロンプトを作成する。
+    """
+
+    clean_topic = str(topic).strip()
+    clean_search_summary = str(search_summary).strip()
+
+    if not clean_topic:
+        raise ValueError(
+            "研究テーマが入力されていません。"
+        )
+
+    if not clean_search_summary:
+        raise ValueError(
+            "先行研究の検索結果が入力されていません。"
+        )
+
+    question_text = ""
+
+    if question_summary:
+        question_text = (
+            "\n\n【事前に整理した研究疑問】\n"
+            f"{str(question_summary).strip()}"
+        )
+
+    return f"""
+あなたは「EGAI-OT Research Runner」です。
+
+以下の研究テーマと先行研究の検索結果をもとに、
+研究ギャップ候補と次の研究計画を整理してください。
+
+【研究テーマ】
+{clean_topic}
+{question_text}
+
+【先行研究の検索結果】
+{clean_search_summary}
+
+以下の項目で整理してください。
+
+1. 先行研究から確認できたこと
+2. まだ十分に分かっていないこと
+3. 研究ギャップ候補
+4. 新規性・独自性の候補
+5. 研究疑問の候補
+6. 適しそうな研究デザイン候補
+7. 主な対象・評価指標・解析の候補
+8. 実施可能性を確認すべき点
+9. 倫理面で確認すべき点
+10. 次に行うべき具体的な研究作業
+
+重要：
+・新規性や独自性は断定せず、
+  「候補」として示してください。
+・検索結果で確認できた事実と、
+  AIによる解釈を区別してください。
+・検索結果に含まれていない内容を
+  事実として補わないでください。
+・不明な点は「未確認」と明示してください。
+・研究デザインは目的に応じて複数候補を示し、
+  1つに決めつけないでください。
+・個人を特定できる情報は求めないでください。
+""".strip()
