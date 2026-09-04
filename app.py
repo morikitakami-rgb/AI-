@@ -240,6 +240,9 @@ if "practice_history" not in st.session_state:
 
     st.session_state.practice_history = []
 
+if "research_runner_result" not in st.session_state:
+
+    st.session_state.research_runner_result = None
 
 # =========================================================
 # AI実行
@@ -3685,6 +3688,107 @@ elif mode == "🔬 Research Runner":
         ),
         key="research_runner_topic",
     )
+
+    run_research_clicked = st.button(
+        "研究を実行",
+        type="primary",
+        key="research_runner_run",
+    )
+
+    if run_research_clicked:
+
+        clean_research_topic = (
+            research_topic.strip()
+        )
+
+        if not clean_research_topic:
+
+            st.warning(
+                "研究テーマを入力してください。"
+            )
+
+        else:
+
+            try:
+
+                with st.spinner(
+                    "研究疑問の整理、"
+                    "先行研究の検索、"
+                    "研究計画の整理を実行しています。"
+                ):
+
+                    research_result = (
+                        run_research_runner(
+                            clean_research_topic
+                        )
+                    )
+
+                st.session_state.research_runner_result = (
+                    research_result
+                )
+
+            except Exception as e:
+
+                st.error(
+                    "Research Runnerの実行中に"
+                    "エラーが発生しました。"
+                )
+
+                st.code(
+                    str(e)
+                )
+
+    if st.session_state.research_runner_result:
+
+        research_result = (
+            st.session_state.research_runner_result
+        )
+
+        st.divider()
+
+        question_tab, search_tab, synthesis_tab = (
+            st.tabs(
+                [
+                    "① 研究疑問",
+                    "② 先行研究",
+                    "③ 研究計画",
+                ]
+            )
+        )
+
+        with question_tab:
+
+            st.markdown(
+                research_result.get(
+                    "question",
+                    ""
+                )
+            )
+
+        with search_tab:
+
+            search_result = (
+                research_result.get(
+                    "search",
+                    {}
+                )
+            )
+
+            st.markdown(
+                search_result.get(
+                    "answer",
+                    ""
+                )
+            )
+
+        with synthesis_tab:
+
+            st.markdown(
+                research_result.get(
+                    "synthesis",
+                    ""
+                )
+            )
 
 # =========================================================
 # 通常AIチャット
