@@ -310,3 +310,33 @@ def create_research_search_agent():
             ),
         ],
     )
+
+# =========================================================
+# Research Search Run
+# =========================================================
+
+
+def run_research_search(
+    topic,
+    question_summary=None,
+):
+    """
+    先行研究検索を実行し、
+    回答と出典情報を返す。
+    """
+
+    agent = create_research_search_agent()
+
+    prompt = build_research_search_prompt(
+        topic=topic,
+        question_summary=question_summary,
+    )
+
+    result = Runner.run_sync(
+        agent,
+        prompt,
+    )
+
+    return extract_evidence_result(
+        result
+    )
