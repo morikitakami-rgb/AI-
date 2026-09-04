@@ -214,6 +214,16 @@ if "pptx_filename" not in st.session_state:
     st.session_state.pptx_filename = None
 
 
+if "practice_result" not in st.session_state:
+
+    st.session_state.practice_result = None
+
+
+if "practice_question" not in st.session_state:
+
+    st.session_state.practice_question = ""
+
+
 # =========================================================
 # AI実行
 # =========================================================
