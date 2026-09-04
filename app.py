@@ -3536,6 +3536,25 @@ elif mode == "実践について相談する":
                             )
                         )
 
+                    history_entry = {
+                        "question": (
+                            st.session_state.practice_question
+                        ),
+                        "result": json.loads(
+                            json.dumps(
+                                result,
+                                ensure_ascii=False,
+                            )
+                        ),
+                        "additional_information": (
+                            clean_additional_information
+                        ),
+                    }
+
+                    st.session_state.practice_history.append(
+                        history_entry
+                    )
+
                     st.session_state.practice_result = (
                         refined_result
                     )
