@@ -25,6 +25,10 @@ from evidence_core import (
     run_evidence_search,
 )
 
+from research_core import (
+    run_research_runner,
+)
+
 from prompts import (
     CATEGORY_MODES,
     get_mode_instruction,
@@ -236,6 +240,9 @@ if "practice_history" not in st.session_state:
 
     st.session_state.practice_history = []
 
+if "research_runner_result" not in st.session_state:
+
+    st.session_state.research_runner_result = None
 
 # =========================================================
 # AI実行
@@ -3657,6 +3664,224 @@ elif mode == "実践について相談する":
                         str(e)
                     )
 
+# =========================================================
+# Research Runner
+# =========================================================
+
+elif mode == "🔬 Research Runner":
+
+    st.subheader(
+        "🔬 Research Runner"
+    )
+
+    st.caption(
+        "研究テーマから研究疑問を整理し、"
+        "先行研究を検索したうえで、"
+        "研究ギャップと次の研究計画を整理します。"
+    )
+
+    research_topic = st.text_area(
+        "研究テーマ",
+        placeholder=(
+            "例：高次脳機能障害者の"
+            "テレワーク就労支援"
+        ),
+        key="research_runner_topic",
+    )
+
+    run_research_clicked = st.button(
+        "研究を実行",
+        type="primary",
+        key="research_runner_run",
+    )
+
+    if run_research_clicked:
+
+        clean_research_topic = (
+            research_topic.strip()
+        )
+
+        if not clean_research_topic:
+
+            st.warning(
+                "研究テーマを入力してください。"
+            )
+
+        else:
+
+            try:
+
+                with st.spinner(
+                    "研究疑問の整理、"
+                    "先行研究の検索、"
+                    "研究計画の整理を実行しています。"
+                ):
+
+                    research_result = (
+                        run_research_runner(
+                            clean_research_topic
+                        )
+                    )
+
+                st.session_state.research_runner_result = (
+                    research_result
+                )
+
+            except Exception as e:
+
+                st.error(
+                    "Research Runnerの実行中に"
+                    "エラーが発生しました。"
+                )
+
+                st.code(
+                    str(e)
+                )
+
+    if st.session_state.research_runner_result:
+
+        research_result = (
+            st.session_state.research_runner_result
+        )
+
+        st.divider()
+
+        question_tab, search_tab, synthesis_tab = (
+            st.tabs(
+                [
+                    "① 研究疑問",
+                    "② 先行研究",
+                    "③ 研究計画",
+                ]
+            )
+        )
+
+        with question_tab:
+
+            st.markdown(
+                research_result.get(
+                    "question",
+                    ""
+                )
+            )
+
+        with search_tab:
+
+            search_result = (
+                research_result.get(
+                    "search",
+                    {}
+                )
+            )
+
+            st.markdown(
+                search_result.get(
+                    "answer",
+                    ""
+                )
+            )
+
+            web_sources = (
+                search_result.get(
+                    "web_sources",
+                    []
+                )
+            )
+
+            if web_sources:
+
+                st.markdown(
+                    "#### 🌐 Web出典"
+                )
+
+                for index, source in enumerate(
+                    web_sources,
+                    start=1,
+                ):
+
+                    title = str(
+                        source.get(
+                            "title",
+                            ""
+                        )
+                    ).strip()
+
+                    url = str(
+                        source.get(
+                            "url",
+                            ""
+                        )
+                    ).strip()
+
+                    if not title:
+
+                        title = (
+                            f"Web出典 {index}"
+                        )
+
+                    if url:
+
+                        st.markdown(
+                            f"{index}. "
+                            f"[{title}]({url})"
+                        )
+
+            file_sources = (
+                search_result.get(
+                    "file_sources",
+                    []
+                )
+            )
+
+            if file_sources:
+
+                st.markdown(
+                    "#### 📄 登録資料"
+                )
+
+                for index, source in enumerate(
+                    file_sources,
+                    start=1,
+                ):
+
+                    filename = str(
+                        source.get(
+                            "filename",
+                            ""
+                        )
+                    ).strip()
+
+                    text = str(
+                        source.get(
+                            "text",
+                            ""
+                        )
+                    ).strip()
+
+                    if not filename:
+
+                        filename = (
+                            f"登録資料 {index}"
+                        )
+
+                    st.markdown(
+                        f"**{index}. {filename}**"
+                    )
+
+                    if text:
+
+                        st.caption(
+                            text
+                        )
+
+        with synthesis_tab:
+
+            st.markdown(
+                research_result.get(
+                    "synthesis",
+                    ""
+                )
+            )
 
 # =========================================================
 # 通常AIチャット
