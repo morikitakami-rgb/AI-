@@ -232,6 +232,10 @@ if "practice_evidence_result" not in st.session_state:
 
     st.session_state.practice_evidence_result = None
 
+if "practice_history" not in st.session_state:
+
+    st.session_state.practice_history = []
+
 
 # =========================================================
 # AI実行
