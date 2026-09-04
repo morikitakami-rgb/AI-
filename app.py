@@ -2825,9 +2825,7 @@ elif mode == "実践について相談する":
 
         else:
 
-            st.session_state.practice_question = (
-                clean_question
-            )
+        
 
             try:
 
@@ -2857,19 +2855,20 @@ elif mode == "実践について相談する":
                     )
                 )
 
+                st.session_state.practice_question = (
+                    clean_question
+                )
+
                 st.session_state.practice_result = (
                     practice_result
                 )
 
                 st.session_state.practice_evidence_result = None
-
                 st.success(
                     "AIによる整理が完了しました。"
                 )
 
             except Exception as e:
-
-                st.session_state.practice_result = None
 
                 st.error(
                     "相談内容の整理中に"
@@ -3233,8 +3232,6 @@ elif mode == "実践について相談する":
                 st.rerun()
 
             except Exception as e:
-
-                st.session_state.practice_evidence_result = None
 
                 st.error(
                     "根拠の確認中に"
