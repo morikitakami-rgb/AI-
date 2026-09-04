@@ -1,3 +1,13 @@
+from dotenv import load_dotenv
+
+from agents import (
+    Agent,
+    Runner,
+)
+
+
+load_dotenv()
+
 # =========================================================
 # Research Runner Core
 # =========================================================
@@ -185,3 +195,34 @@ def build_research_synthesis_prompt(
   1つに決めつけないでください。
 ・個人を特定できる情報は求めないでください。
 """.strip()
+
+# =========================================================
+# Research Question Agent
+# =========================================================
+
+
+RESEARCH_QUESTION_INSTRUCTIONS = """
+あなたは「EGAI-OT Research Runner」です。
+
+研究テーマを、研究可能な問いへ整理することを支援します。
+
+この段階では外部検索を行わず、
+入力された情報だけを使用してください。
+
+入力されていない事実を補わず、
+不明な点は未確認として扱ってください。
+
+新規性や独自性を断定せず、
+個人を特定できる情報を求めないでください。
+""".strip()
+
+
+def create_research_question_agent():
+    """
+    研究疑問整理専用Agentを作成する。
+    """
+
+    return Agent(
+        name="EGAI-OT Research Question",
+        instructions=RESEARCH_QUESTION_INSTRUCTIONS,
+    )
