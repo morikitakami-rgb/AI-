@@ -2706,6 +2706,130 @@ elif mode == "実践について相談する":
         "次に考えることを明確にします。"
     )
 
+    st.info(
+        "個人を特定できる情報は入力せず、"
+        "必要最小限の匿名化情報を使用してください。"
+    )
+
+
+    # -----------------------------------------------------
+    # 相談内容
+    # -----------------------------------------------------
+
+    practice_question = st.text_area(
+        "相談内容を入力してください",
+        value=(
+            st.session_state
+            .practice_question
+        ),
+        height=180,
+        placeholder=(
+            "例：退院後の生活に不安がある方について、"
+            "どのような情報を整理して支援方針を"
+            "考えるとよいでしょうか。"
+        ),
+        key="practice_question_input",
+    )
+
+
+    # -----------------------------------------------------
+    # Scope
+    # -----------------------------------------------------
+
+    practice_scope = st.selectbox(
+        "対象",
+        PRACTICE_SCOPE_OPTIONS,
+        index=0,
+        key="practice_scope_selector",
+    )
+
+
+    # -----------------------------------------------------
+    # Context
+    # -----------------------------------------------------
+
+    practice_contexts = st.multiselect(
+        "関連する場面",
+        PRACTICE_CONTEXT_OPTIONS,
+        default=[],
+        key="practice_context_selector",
+        help=(
+            "複数の場面が関係する場合は、"
+            "複数選択できます。"
+        ),
+    )
+
+
+    # -----------------------------------------------------
+    # AIで整理する
+    # -----------------------------------------------------
+
+    organize_practice = st.button(
+        "🧠 AIで整理する",
+        type="primary",
+        use_container_width=True,
+        disabled=(
+            not privacy_confirmed
+        ),
+        key="practice_organize_button",
+    )
+
+
+    if not privacy_confirmed:
+
+        st.warning(
+            "サイドバーの"
+            "「個人を特定できる情報を入力しません」"
+            "にチェックすると利用できます。"
+        )
+
+
+    # -----------------------------------------------------
+    # 入力確認
+    # -----------------------------------------------------
+
+    if organize_practice:
+
+        clean_question = (
+            practice_question.strip()
+        )
+
+        if not clean_question:
+
+            st.warning(
+                "相談内容を入力してください。"
+            )
+
+        elif has_sensitive_information(
+            clean_question
+        ):
+
+            warning = (
+                get_privacy_warning(
+                    clean_question
+                )
+            )
+
+            st.error(
+                warning
+            )
+
+        else:
+
+            st.session_state.practice_question = (
+                clean_question
+            )
+
+            st.success(
+                "入力内容を確認できました。"
+            )
+
+            st.caption(
+                "次の工程で、"
+                "EGAI-OT PracticeのAI整理機能へ"
+                "接続します。"
+            )
+
 
 # =========================================================
 # 通常AIチャット
