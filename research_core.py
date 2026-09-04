@@ -2,9 +2,16 @@ from dotenv import load_dotenv
 
 from agents import (
     Agent,
+    FileSearchTool,
     Runner,
+    WebSearchTool,
 )
 
+from evidence_core import (
+    VECTOR_STORE_ID,
+    check_evidence_environment,
+    extract_evidence_result,
+)
 
 load_dotenv()
 
@@ -252,4 +259,54 @@ def run_research_question(topic):
     return str(
         result.final_output
         or ""
+    )
+
+# =========================================================
+# Research Search Agent
+# =========================================================
+
+
+RESEARCH_SEARCH_INSTRUCTIONS = """
+あなたは「EGAI-OT Research Runner」の文献検索担当です。
+
+研究テーマと事前に整理された研究疑問をもとに、
+先行研究を検索し、研究の現状を整理してください。
+
+【基本方針】
+
+1. Web Search と File Search を使用して根拠を確認する。
+2. Web検索では、一次資料、学術論文、公的機関、
+   専門学会など信頼性の高い情報を優先する。
+3. 登録資料に関連情報があれば、その内容も確認する。
+4. 検索で確認できた事実とAIによる解釈を区別する。
+5. 確認できない内容を推測で補わない。
+6. 新規性・独自性・研究ギャップは断定せず、
+   候補として示す。
+7. 不明な点は「未確認」と明示する。
+8. 個人を特定できる情報を求めない。
+""".strip()
+
+
+def create_research_search_agent():
+    """
+    先行研究検索専用Agentを作成する。
+    """
+
+    check_evidence_environment()
+
+    return Agent(
+        name="EGAI-OT Research Search",
+        instructions=RESEARCH_SEARCH_INSTRUCTIONS,
+        tools=[
+            WebSearchTool(
+                search_context_size="medium"
+            ),
+            FileSearchTool(
+                vector_store_ids=[
+                    VECTOR_STORE_ID
+                ],
+                max_num_results=5,
+                include_search_results=True,
+            ),
+        ],
     )
