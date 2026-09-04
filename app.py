@@ -3137,6 +3137,143 @@ elif mode == "実践について相談する":
             )
 
 
+        # -------------------------------------------------
+        # 追加情報による再整理
+        # -------------------------------------------------
+
+        st.divider()
+
+        st.markdown(
+            "### 🔄 追加情報をもとに再整理"
+        )
+
+        st.caption(
+            "「次に確認したいこと」などについて"
+            "追加で分かった情報を入力すると、"
+            "整理結果を更新できます。"
+        )
+
+        additional_information = st.text_area(
+            "追加で分かったこと",
+            placeholder=(
+                "例：入浴時に特に不安があり、"
+                "浴槽をまたぐ際にふらつきがあります。"
+            ),
+            height=140,
+            key="practice_additional_information",
+        )
+
+        refine_practice = st.button(
+            "🔄 AIで再整理する",
+            type="primary",
+            use_container_width=True,
+            disabled=(
+                not privacy_confirmed
+            ),
+            key="practice_refine_button",
+        )
+
+
+        if refine_practice:
+
+            clean_additional_information = (
+                additional_information.strip()
+            )
+
+            if not clean_additional_information:
+
+                st.warning(
+                    "追加情報を入力してください。"
+                )
+
+            elif has_sensitive_information(
+                clean_additional_information
+            ):
+
+                warning = (
+                    get_privacy_warning(
+                        clean_additional_information
+                    )
+                )
+
+                st.error(
+                    warning
+                )
+
+            else:
+
+                try:
+
+                    refinement_prompt = (
+                        build_practice_refinement_prompt(
+                            original_question=(
+                                st.session_state
+                                .practice_question
+                            ),
+                            current_result=result,
+                            additional_information=(
+                                clean_additional_information
+                            ),
+                        )
+                    )
+
+                    with st.spinner(
+                        "追加情報をもとに"
+                        "再整理しています..."
+                    ):
+
+                        refinement_raw_answer = (
+                            run_agent(
+                                refinement_prompt,
+                                use_conversation=False,
+                            )
+                        )
+
+                    refined_result = (
+                        parse_practice_response(
+                            refinement_raw_answer
+                        )
+                    )
+
+                    # Scopeは初回設定を維持
+                    refined_result["scope"] = (
+                        result.get(
+                            "scope",
+                            "個人",
+                        )
+                    )
+
+                    # Contextが空になった場合は
+                    # 現在のContextを維持
+                    if not refined_result.get(
+                        "contexts"
+                    ):
+
+                        refined_result["contexts"] = (
+                            result.get(
+                                "contexts",
+                                [],
+                            )
+                        )
+
+                    st.session_state.practice_result = (
+                        refined_result
+                    )
+
+                    st.rerun()
+
+                except Exception as e:
+
+                    st.error(
+                        "再整理中に"
+                        "エラーが発生しました。"
+                    )
+
+                    st.code(
+                        str(e)
+                    )
+
+
 # =========================================================
 # 通常AIチャット
 # =========================================================
