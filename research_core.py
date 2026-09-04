@@ -226,3 +226,30 @@ def create_research_question_agent():
         name="EGAI-OT Research Question",
         instructions=RESEARCH_QUESTION_INSTRUCTIONS,
     )
+
+# =========================================================
+# Research Question Run
+# =========================================================
+
+
+def run_research_question(topic):
+    """
+    研究テーマをAIで整理し、
+    研究疑問整理の結果を返す。
+    """
+
+    agent = create_research_question_agent()
+
+    prompt = build_research_question_prompt(
+        topic
+    )
+
+    result = Runner.run_sync(
+        agent,
+        prompt,
+    )
+
+    return str(
+        result.final_output
+        or ""
+    )
