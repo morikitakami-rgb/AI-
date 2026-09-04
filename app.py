@@ -13,6 +13,13 @@ from agent_core import (
     build_question,
 )
 
+from practice_core import (
+    PRACTICE_SCOPE_OPTIONS,
+    PRACTICE_CONTEXT_OPTIONS,
+    build_practice_prompt,
+    parse_practice_response,
+)
+
 from prompts import (
     CATEGORY_MODES,
     get_mode_instruction,
